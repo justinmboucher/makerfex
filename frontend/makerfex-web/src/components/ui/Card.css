@@ -1,0 +1,119 @@
+/* src/components/ui/Card.css */
+
+.mf-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-space-3);
+
+  background-color: var(--mf-color-bg-secondary);
+  color: var(--mf-color-text-primary);
+
+  border-radius: var(--mf-radius-lg);
+  border: 1px solid var(--mf-color-border);
+  box-shadow: var(--mf-shadow-sm);
+
+  padding: var(--mf-space-4);
+
+  transition:
+    box-shadow var(--mf-transition-fast),
+    transform var(--mf-transition-fast),
+    border-color var(--mf-transition-fast),
+    background-color var(--mf-transition-fast);
+}
+
+/* Variants */
+
+.mf-card--flat {
+  box-shadow: none;
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.mf-card--subtle {
+  background-color: var(--mf-color-bg-primary);
+  box-shadow: none;
+}
+
+.mf-card--elevated {
+  box-shadow: var(--mf-shadow-md);
+}
+
+/* Clickable card (used for list tiles, etc.) */
+.mf-card--clickable {
+  cursor: pointer;
+}
+
+.mf-card--clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--mf-shadow-md);
+  border-color: rgba(148, 163, 184, 0.6);
+}
+
+/* Card sections */
+
+.mf-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-space-3);
+}
+
+.mf-card__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mf-card__title {
+  font-size: var(--mf-font-size-h3);
+  font-weight: 600;
+  line-height: var(--mf-line-height-tight);
+  color: var(--mf-color-text-primary);
+}
+
+.mf-card__subtitle {
+  font-size: var(--mf-font-size-small);
+  color: var(--mf-color-text-secondary);
+}
+
+.mf-card__toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-space-2);
+}
+
+.mf-card__body {
+  font-size: var(--mf-font-size-body);
+  color: var(--mf-color-text-primary);
+}
+
+.mf-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--mf-space-2);
+  margin-top: var(--mf-space-3);
+  padding-top: var(--mf-space-3);
+  border-top: 1px solid var(--mf-color-border);
+}
+
+/* Density modifiers */
+
+.mf-card--compact {
+  padding: var(--mf-space-3);
+  gap: var(--mf-space-2);
+}
+
+.mf-card--spacious {
+  padding: var(--mf-space-5);
+}
+
+/* Sections: subtle dividers */
+
+.mf-card__section {
+  padding: var(--mf-space-2) 0;
+}
+
+.mf-card__section + .mf-card__section {
+  border-top: 1px dashed rgba(148, 163, 184, 0.4);
+}

@@ -1,0 +1,129 @@
+##############################################
+# Python / Django
+##############################################
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django local settings & secrets
+*.env
+*.local
+.env.*
+secrets.json
+
+# Django migrations cache
+*.pot
+*.mo
+
+# SQLite database (if using locally)
+db.sqlite3
+db.sqlite3-journal
+
+# Django static + media (generated)
+staticfiles/
+media/
+
+# Coverage / test reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+
+# MyPy / type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+##############################################
+# Virtualenv
+##############################################
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+##############################################
+# Node / React / Vite
+##############################################
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vite build output
+dist/
+build/
+
+# Local environment variables
+*.env
+*.env.local
+
+# Vite typescript cache
+*.tsbuildinfo
+vite.config.ts.timestamp-*
+
+##############################################
+# MkDocs
+##############################################
+
+# MkDocs build output
+site/
+
+# Temp files created by markdown or doc builders
+*.tmp
+*.swp
+
+##############################################
+# OS-specific / Editor
+##############################################
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VSCode
+.vscode/
+.history/
+
+# JetBrains IDEs (PyCharm, WebStorm)
+.idea/
+
+##############################################
+# Logs
+##############################################
+
+*.log
+logs/
+*.out
+*.err
+
+##############################################
+# Misc
+##############################################
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+
+# Temporary files
+*.tmp
+*.bak
+*~

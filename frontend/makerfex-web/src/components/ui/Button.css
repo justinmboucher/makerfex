@@ -1,0 +1,122 @@
+/* src/components/ui/Button.css */
+
+.mf-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mf-space-2);
+
+  padding: 0.5rem 1rem;
+  border-radius: 999px; /* pill-like */
+  border: 1px solid transparent;
+
+  font-family: var(--mf-font-sans);
+  font-size: var(--mf-font-size-body);
+  font-weight: 500;
+  line-height: 1;
+
+  cursor: pointer;
+  white-space: nowrap;
+
+  background-color: transparent;
+  color: var(--mf-color-text-primary);
+
+  transition:
+    background-color var(--mf-transition-fast),
+    color var(--mf-transition-fast),
+    border-color var(--mf-transition-fast),
+    box-shadow var(--mf-transition-fast),
+    transform var(--mf-transition-fast);
+}
+
+/* Variants */
+
+.mf-button--primary {
+  background-color: var(--mf-btn-primary-bg);
+  color: var(--mf-btn-primary-text);
+  border-color: var(--mf-btn-primary-bg);
+  box-shadow: var(--mf-shadow-sm);
+}
+
+.mf-button--primary:hover:not(:disabled) {
+  background-color: var(--mf-btn-primary-bg-hover);
+  border-color: var(--mf-btn-primary-bg-hover);
+  transform: translateY(-0.5px);
+  box-shadow: var(--mf-shadow-md);
+}
+
+.mf-button--secondary {
+  background-color: transparent;
+  color: var(--mf-btn-secondary-text);
+  border-color: var(--mf-btn-secondary-border);
+}
+
+.mf-button--secondary:hover:not(:disabled) {
+  background-color: var(--mf-btn-secondary-bg-hover);
+}
+
+.mf-button--ghost {
+  background-color: transparent;
+  color: var(--mf-btn-ghost-text);
+  border-color: transparent;
+}
+
+.mf-button--ghost:hover:not(:disabled) {
+  background-color: var(--mf-btn-ghost-bg-hover);
+}
+
+/* Sizes */
+
+.mf-button--sm {
+  padding: 0.35rem 0.75rem;
+  font-size: var(--mf-font-size-small);
+}
+
+.mf-button--md {
+  padding: 0.5rem 1rem;
+}
+
+.mf-button--lg {
+  padding: 0.7rem 1.25rem;
+  font-size: 1.05rem;
+}
+
+/* Full width */
+
+.mf-button--full {
+  width: 100%;
+}
+
+/* Icons */
+
+.mf-button__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mf-button__icon--left {
+  margin-right: 0.25rem;
+}
+
+.mf-button__icon--right {
+  margin-left: 0.25rem;
+}
+
+/* Focus & accessibility */
+
+.mf-button:focus-visible {
+  outline: 2px solid var(--mf-color-highlight);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(0, 184, 217, 0.35);
+}
+
+/* Disabled */
+
+.mf-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}

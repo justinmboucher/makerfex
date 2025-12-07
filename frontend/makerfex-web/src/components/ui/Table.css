@@ -1,0 +1,110 @@
+/* src/components/ui/Table.css */
+
+.mf-table-container {
+  width: 100%;
+  border-radius: var(--mf-radius-lg);
+  border: 1px solid var(--mf-color-border);
+  background-color: var(--mf-color-bg-primary);
+  overflow: hidden;
+}
+
+.mf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.mf-table thead {
+  background-color: var(--mf-color-bg-secondary);
+}
+
+.mf-table th,
+.mf-table td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--mf-color-border);
+}
+
+.mf-table th {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mf-color-text-secondary);
+}
+
+.mf-table tbody tr:nth-child(odd) {
+  background-color: rgba(148, 163, 184, 0.035);
+}
+
+.mf-table tbody tr:hover {
+  background-color: rgba(0, 184, 217, 0.08);
+}
+
+.mf-table-row--clickable {
+  cursor: pointer;
+}
+
+/* Alignment helpers */
+
+.mf-table__cell--right {
+  text-align: right;
+}
+
+.mf-table__cell--center {
+  text-align: center;
+}
+
+/* Empty state */
+
+.mf-table__empty {
+  padding: 1.25rem 0.75rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--mf-color-text-secondary);
+}
+
+/* Footer */
+
+.mf-table__footer {
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-space-3);
+  background-color: var(--mf-color-bg-secondary);
+  border-top: 1px solid var(--mf-color-border);
+  font-size: 0.8rem;
+}
+
+/* Simple pagination controls */
+
+.mf-table__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-space-2);
+}
+
+.mf-table__pager-button {
+  border: 1px solid var(--mf-color-border);
+  background-color: var(--mf-color-bg-primary);
+  color: var(--mf-color-text-primary);
+  border-radius: var(--mf-radius-sm);
+  padding: 0.15rem 0.4rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+
+  transition:
+    background-color var(--mf-transition-fast),
+    color var(--mf-transition-fast),
+    border-color var(--mf-transition-fast);
+}
+
+.mf-table__pager-button:hover:not(:disabled) {
+  background-color: rgba(148, 163, 184, 0.15);
+}
+
+.mf-table__pager-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

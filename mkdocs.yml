@@ -1,0 +1,54 @@
+site_name: Makerfex Documentation
+site_url: ""
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: cyan
+    - scheme: slate
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+
+nav:
+  - Overview: index.md
+  - Branding: branding.md
+  - Architecture:
+      - High-Level: architecture/00_architecture_overview.md
+      - Backend Modules: architecture/backend_modules.md
+  - API:
+      - Overview: api/index.md
+  - User Guide:
+      - Getting Started: user-guide/getting-started.md
+      - Projects: user-guide/projects.md
+      - Inventory: user-guide/inventory.md
+
+markdown_extensions:
+  # Core
+  - admonition
+  - toc:
+      permalink: true
+  - footnotes
+  - tables
+
+  # Pymdown extensions
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      linenums: false
+      guess_lang: false
+  - pymdownx.caret      # ^^insert^^
+  - pymdownx.mark       # ==highlight==
+  - pymdownx.tilde      # ~~strike~~ and sub/superscript
+  - pymdownx.smartsymbols
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

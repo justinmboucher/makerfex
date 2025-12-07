@@ -1,0 +1,141 @@
+/* src/components/ui/TextField.css */
+
+.mf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Label */
+
+.mf-field__label {
+  font-size: var(--mf-font-size-small);
+  font-weight: 500;
+  color: var(--mf-color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mf-field__label-optional {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--mf-color-text-secondary);
+}
+
+/* Description / helper text */
+
+.mf-field__description {
+  font-size: 0.8rem;
+  color: var(--mf-color-text-secondary);
+}
+
+/* Error message */
+
+.mf-field__error {
+  font-size: 0.8rem;
+  color: var(--mf-color-danger);
+  margin-top: 2px;
+}
+
+/* Input wrapper */
+
+.mf-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.mf-input {
+  width: 100%;
+  border-radius: var(--mf-radius-md);
+  border: 1px solid var(--mf-color-border);
+  background-color: var(--mf-color-bg-primary);
+  color: var(--mf-color-text-primary);
+
+  font-family: var(--mf-font-sans);
+  font-size: var(--mf-font-size-body);
+  line-height: var(--mf-line-height-normal);
+
+  padding: 0.5rem 0.75rem;
+  outline: none;
+
+  transition:
+    border-color var(--mf-transition-fast),
+    box-shadow var(--mf-transition-fast),
+    background-color var(--mf-transition-fast),
+    color var(--mf-transition-fast);
+}
+
+/* Size variants */
+
+.mf-input--sm {
+  padding: 0.35rem 0.6rem;
+  font-size: var(--mf-font-size-small);
+}
+
+.mf-input--lg {
+  padding: 0.7rem 0.9rem;
+  font-size: 1.05rem;
+}
+
+/* With icons */
+
+.mf-input-wrapper--with-left-icon .mf-input {
+  padding-left: 2rem;
+}
+
+.mf-input-wrapper--with-right-adornment .mf-input {
+  padding-right: 2rem;
+}
+
+.mf-input__icon-left,
+.mf-input__adornment-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mf-color-text-secondary);
+  pointer-events: none;
+}
+
+.mf-input__icon-left {
+  left: 0.6rem;
+}
+
+.mf-input__adornment-right {
+  right: 0.6rem;
+  pointer-events: auto; /* allow click if it's a button */
+}
+
+/* Focus / hover */
+
+.mf-input:hover {
+  border-color: rgba(148, 163, 184, 0.8);
+}
+
+.mf-input:focus-visible {
+  border-color: var(--mf-color-accent);
+  box-shadow: 0 0 0 3px rgba(93, 95, 239, 0.25);
+}
+
+/* Disabled */
+
+.mf-input:disabled {
+  background-color: rgba(148, 163, 184, 0.12);
+  color: rgba(148, 163, 184, 0.9);
+  cursor: not-allowed;
+}
+
+/* Invalid state */
+
+.mf-input--invalid {
+  border-color: var(--mf-color-danger);
+}
+
+.mf-input--invalid:focus-visible {
+  box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.25);
+}
