@@ -1,4 +1,4 @@
-/* src/components/layout/AppLayout.css */
+/* App shell layout */
 
 .mf-shell {
   min-height: 100vh;
@@ -7,6 +7,8 @@
   color: var(--mf-color-text-primary);
 }
 
+/* Sidebar column width handled inside Sidebar.css via flex-basis */
+
 .mf-shell__main {
   flex: 1;
   min-width: 0;
@@ -14,7 +16,7 @@
   flex-direction: column;
 }
 
-/* Content area under the topbar */
+/* Content area under topbar */
 
 .mf-shell__content {
   flex: 1;
@@ -24,14 +26,12 @@
   overflow-y: auto;
 }
 
-/* Center the main content and give it a nice max width */
-
 .mf-shell__content-inner {
   max-width: 1200px;
   margin: 0 auto;
 }
 
-/* Grid helper for dashboard-style layouts */
+/* 12-column grid helper for dashboard-style layouts */
 
 .mf-grid-12 {
   display: grid;
@@ -57,4 +57,20 @@
 
 .mf-grid-span-12 {
   grid-column: span 12 / span 12;
+}
+
+/* Collapsed shell tweaks (mostly controlled in Sidebar) */
+
+.mf-shell--collapsed .mf-shell__content {
+  padding-left: var(--mf-space-5);
+}
+
+@media (max-width: 900px) {
+  .mf-shell__content {
+    padding: var(--mf-space-4);
+  }
+
+  .mf-shell__content-inner {
+    max-width: 100%;
+  }
 }

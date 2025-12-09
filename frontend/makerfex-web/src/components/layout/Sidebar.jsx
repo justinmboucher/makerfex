@@ -2,90 +2,79 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import "../../styles/layout/Sidebar.css";
+import { HelpCircle } from "lucide-react";
 
-function classNames(...parts) {
+function cx(...parts) {
   return parts.filter(Boolean).join(" ");
 }
 
-/**
- * Sidebar
- *
- * Props:
- * - sections: [
- *     {
- *       id: "overview",
- *       title: "Overview",
- *       items: [{ id, label, icon, to }]
- *     }
- *   ]
- * - collapsed: boolean
- * - onToggleCollapsed(): void
- * - brandLabel: string
- * - footerText: string
- */
 export function Sidebar({
   sections,
   collapsed = false,
   onToggleCollapsed,
-  brandLabel = "Makerfex",
-  footerText = "Demo shop",
 }) {
   return (
     <aside
-      className={classNames(
-        "mf-sidebar",
-        collapsed && "mf-sidebar--collapsed"
-      )}
+      className={cx("mf-sidebar", collapsed && "mf-sidebar--collapsed")}
     >
-      {/* Brand + collapse toggle */}
-      <div className="mf-sidebar__brand-row">
+      {/* Brand block */}
+      <div className="mf-sidebar__header">
         <div className="mf-sidebar__brand">
-          <div className="mf-sidebar__logo-mark">MF</div>
-          <div className="mf-sidebar__brand-text">
-            <div className="mf-sidebar__brand-name">{brandLabel}</div>
-            <div className="mf-sidebar__brand-tagline">
-              Shop ops command center
-            </div>
+          <div className="mf-sidebar__brand-logo-wrapper">
+            <img
+              src="/images/makerfex-logo.svg"
+              alt="MAKERFEX"
+              className="mf-sidebar__brand-logo"
+            />
           </div>
+          {!collapsed && (
+            <div className="mf-sidebar__brand-wordmark">
+              MAKERFEX
+            </div>
+          )}
         </div>
 
+        {/* Collapse toggle */}
         <button
           type="button"
           className="mf-sidebar__collapse-toggle"
           onClick={onToggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          <span className="mf-sidebar__collapse-icon">
-            {collapsed ? "»" : "«"}
-          </span>
+          {collapsed ? "›" : "‹"}
         </button>
       </div>
 
-      {/* Nav sections */}
-      <nav className="mf-sidebar__nav" aria-label="Primary">
-        {sections?.map((section) => (
+      {/* Navigation */}
+      <nav className="mf-sidebar__nav">
+        {sections.map((section) => (
           <div key={section.id} className="mf-sidebar__section">
-            <div className="mf-sidebar__section-label">
-              {section.title}
-            </div>
+            {!collapsed && (
+              <div className="mf-sidebar__section-label">
+                {section.title}
+              </div>
+            )}
             <div className="mf-sidebar__section-items">
-              {section.items?.map((item) => (
+              {section.items.map((item) => (
                 <NavLink
                   key={item.id}
                   to={item.to}
                   className={({ isActive }) =>
-                    classNames(
-                      "mf-sidebar-link",
-                      isActive && "mf-sidebar-link--active"
+                    cx(
+                      "mf-sidebar__link",
+                      isActive && "mf-sidebar__link--active",
+                      collapsed && "mf-sidebar__link--icon-only"
                     )
                   }
                 >
-                  <span className="mf-sidebar-link__icon">
+                  <span className="mf-sidebar__link-icon">
                     {item.icon}
                   </span>
-                  <span className="mf-sidebar-link__label">
-                    {item.label}
-                  </span>
+                  {!collapsed && (
+                    <span className="mf-sidebar__link-label">
+                      {item.label}
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </div>
@@ -93,10 +82,27 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* Footer */}
+            {/* Footer: Help & Docs */}
       <div className="mf-sidebar__footer">
-        <span className="mf-sidebar__footer-pill">{footerText}</span>
-        <span className="mf-sidebar__footer-version">v1.0.0</span>
+        <div className="mf-sidebar__footer-divider" />
+        <a
+          href="http://127.0.0.1:8001/user-guide/getting-started/"
+          target="_blank"
+          rel="noreferrer"
+          className={cx(
+            "mf-sidebar__footer-link",
+            collapsed && "mf-sidebar__footer-link--icon-only"
+          )}
+        >
+          <span className="mf-sidebar__footer-link-icon">
+            <HelpCircle size={16} />
+          </span>
+          {!collapsed && (
+            <span className="mf-sidebar__footer-link-label">
+              Help &amp; Docs
+            </span>
+          )}
+        </a>
       </div>
     </aside>
   );

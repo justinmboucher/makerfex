@@ -1,5 +1,3 @@
-/* src/styles/layout/Topbar.css */
-
 .mf-topbar {
   position: sticky;
   top: 0;
@@ -83,7 +81,7 @@
   background-color: rgba(148, 163, 184, 0.15);
 }
 
-/* User menu + dropdown */
+/* User menu */
 
 .mf-topbar__user-wrapper {
   position: relative;
@@ -143,7 +141,7 @@
   color: var(--mf-color-text-secondary);
 }
 
-/* Dropdown panel */
+/* Dropdown */
 
 .mf-topbar__user-dropdown {
   position: absolute;
@@ -193,7 +191,7 @@
   background-color: var(--mf-color-border);
 }
 
-/* Responsive tweaks */
+/* Responsive */
 
 @media (max-width: 900px) {
   .mf-topbar {

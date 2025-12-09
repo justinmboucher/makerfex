@@ -1,9 +1,9 @@
-// src/components/layout/AppLayout.jsx
 import React, { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import "../../styles/layout/AppLayout.css";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+
 import {
   LayoutDashboard,
   Users,
@@ -31,7 +31,7 @@ function getPageConfig(pathname) {
         { label: "Dashboard", to: "/dashboard" },
         { label: "Projects" },
       ],
-      // primaryAction: { label: "New Project", to: "/projects/new" },
+      // primaryAction: { label: "NEW PROJECT", to: "/projects/new" },
     };
   }
 
@@ -96,7 +96,7 @@ function getPageConfig(pathname) {
   }
 
   return {
-    title: "Makerfex",
+    title: "MAKERFEX",
     breadcrumbs: [{ label: "Dashboard", to: "/dashboard" }],
   };
 }
@@ -194,6 +194,8 @@ export function AppLayout({ children }) {
         sections={sections}
         collapsed={collapsed}
         onToggleCollapsed={() => setCollapsed((prev) => !prev)}
+        brandLabel="MAKERFEX"
+        footerText="SHOP COMMAND CENTER"
       />
 
       <div className="mf-shell__main">

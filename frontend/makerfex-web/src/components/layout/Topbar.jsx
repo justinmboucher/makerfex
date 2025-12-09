@@ -1,4 +1,3 @@
-// src/components/layout/Topbar.jsx
 import React, { useState, useRef, useEffect } from "react";
 import "../../styles/layout/Topbar.css";
 import { Search, Bell, ChevronDown } from "lucide-react";
@@ -7,15 +6,6 @@ import { TextField } from "../ui/TextField";
 import { Button } from "../ui/Button";
 import { useAuth } from "../../context/authContext";
 
-/**
- * Topbar
- *
- * Props:
- * - title: string
- * - breadcrumbs: [{ label, to? }]
- * - onSearchChange?(value: string)
- * - primaryAction?: { label: string, to?: string, onClick?: () => void }
- */
 export function Topbar({
   title,
   breadcrumbs = [],
@@ -23,14 +13,15 @@ export function Topbar({
   primaryAction,
 }) {
   const auth = useAuth();
-  const { user, shop } = auth || {};
+  const { user, shop, logout } = auth || {};
+
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
   const displayName =
     user?.full_name || user?.name || user?.username || "Workspace owner";
 
-  const shopName = shop?.name || "Makerfex shop";
+  const shopName = shop?.name || "MAKERFEX shop";
 
   const initials = displayName
     .split(" ")
@@ -40,11 +31,10 @@ export function Topbar({
     .slice(0, 2)
     .toUpperCase();
 
-  // Close dropdown when clicking outside
   useEffect(() => {
-    function handleClickOutside(event) {
+    function handleClickOutside(e) {
       if (!menuRef.current) return;
-      if (!menuRef.current.contains(event.target)) {
+      if (!menuRef.current.contains(e.target)) {
         setMenuOpen(false);
       }
     }
@@ -54,10 +44,9 @@ export function Topbar({
 
   async function handleLogout() {
     try {
-      if (auth?.logout) {
-        await auth.logout();
+      if (logout) {
+        await logout();
       } else {
-        // Fallback: force navigation to login
         window.location.href = "/login";
       }
     } finally {
@@ -71,7 +60,10 @@ export function Topbar({
         <div className="mf-topbar__breadcrumbs">
           {breadcrumbs.length > 0 ? (
             breadcrumbs.map((crumb, idx) => (
-              <span key={`${crumb.label}-${idx}`} className="mf-topbar__crumb">
+              <span
+                key={`${crumb.label}-${idx}`}
+                className="mf-topbar__crumb"
+              >
                 {idx > 0 && (
                   <span className="mf-topbar__crumb-separator">/</span>
                 )}
