@@ -143,124 +143,134 @@ export function Topbar({
 
   return (
     <header className="mf-topbar">
-      <div className="mf-topbar__left">
-        <div className="mf-topbar__breadcrumbs">
-          {breadcrumbs.length > 0 ? (
-            breadcrumbs.map((crumb, idx) => (
-              <span
-                key={`${crumb.label}-${idx}`}
-                className="mf-topbar__crumb"
-              >
-                {idx > 0 && (
-                  <span className="mf-topbar__crumb-separator">/</span>
-                )}
-                {crumb.to ? (
-                  <Link to={crumb.to}>{crumb.label}</Link>
-                ) : (
-                  crumb.label
-                )}
+      <div className="mf-topbar__inner">
+        <div className="mf-topbar__left">
+          <div className="mf-topbar__breadcrumbs">
+            {breadcrumbs.length > 0 ? (
+              breadcrumbs.map((crumb, idx) => (
+                <span
+                  key={`${crumb.label}-${idx}`}
+                  className="mf-topbar__crumb"
+                >
+                  {idx > 0 && (
+                    <span className="mf-topbar__crumb-separator">/</span>
+                  )}
+                  {crumb.to ? (
+                    <Link to={crumb.to}>{crumb.label}</Link>
+                  ) : (
+                    crumb.label
+                  )}
+                </span>
+              ))
+            ) : (
+              <span className="mf-topbar__crumb mf-topbar__title-fallback">
+                {title}
               </span>
-            ))
-          ) : (
-            <span className="mf-topbar__crumb mf-topbar__title-fallback">
-              {title}
+            )}
+          </div>
+
+          {title && <h1 className="mf-topbar__title">{title}</h1>}
+
+          {shopName && (
+            <span className="mf-topbar__subtitle mf-topbar__subtitle--shop">
+              {shopName}
             </span>
           )}
         </div>
 
-        {title && <h1 className="mf-topbar__title">{title}</h1>}
+        <div className="mf-topbar__right">
+          <div className="mf-topbar__search">
+            <GlobalSearch onSearchChange={onSearchChange} />
+          </div>
 
-        {shopName && <span className="mf-topbar__subtitle">{shopName}</span>}
-      </div>
+          {primaryAction && (
+            <Button
+              variant="primary"
+              size="sm"
+              as={primaryAction.to ? Link : "button"}
+              to={primaryAction.to}
+              onClick={primaryAction.onClick}
+            >
+              {primaryAction.label}
+            </Button>
+          )}
 
-      <div className="mf-topbar__right">
-        <GlobalSearch onSearchChange={onSearchChange} />
-
-        {primaryAction && (
-          <Button
-            variant="primary"
-            size="sm"
-            as={primaryAction.to ? Link : "button"}
-            to={primaryAction.to}
-            onClick={primaryAction.onClick}
-          >
-            {primaryAction.label}
-          </Button>
-        )}
-
-        {/* Theme toggle */}
-        <button
-          type="button"
-          className="mf-topbar__icon-button"
-          aria-label={themeIsDark ? "Switch to light mode" : "Switch to dark mode"}
-          onClick={toggleTheme}
-        >
-          {themeIsDark ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-
-        {/* Notifications */}
-        <button
-          type="button"
-          className="mf-topbar__icon-button"
-          aria-label="Notifications"
-        >
-          <Bell size={18} />
-        </button>
-
-        {/* User menu */}
-        <div className="mf-topbar__user-wrapper" ref={menuRef}>
+          {/* Theme toggle */}
           <button
             type="button"
-            className="mf-topbar__user-menu"
-            onClick={() => setMenuOpen((prev) => !prev)}
+            className="mf-topbar__icon-button"
+            aria-label={
+              themeIsDark ? "Switch to light mode" : "Switch to dark mode"
+            }
+            onClick={toggleTheme}
           >
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                className="mf-topbar__avatar mf-topbar__avatar--image"
-              />
-            ) : (
-              <div className="mf-topbar__avatar">{initials}</div>
-            )}
-
-            <div className="mf-topbar__user-meta">
-              <span className="mf-topbar__user-name">{displayName}</span>
-              {shopName && (
-                <span className="mf-topbar__user-role">
-                  {shopName}
-                </span>
-              )}
-            </div>
-            <ChevronDown size={16} />
+            {themeIsDark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
-          {menuOpen && (
-            <div className="mf-topbar__user-dropdown">
-              <button
-                type="button"
-                className="mf-topbar__user-dropdown-item"
-              >
-                My profile
-              </button>
-              <button
-                type="button"
-                className="mf-topbar__user-dropdown-item"
-              >
-                Account settings
-              </button>
+          {/* Notifications */}
+          <button
+            type="button"
+            className="mf-topbar__icon-button"
+            aria-label="Notifications"
+          >
+            <Bell size={18} />
+          </button>
 
-              <div className="mf-topbar__user-dropdown-separator" />
+          {/* User menu */}
+          <div className="mf-topbar__user-wrapper" ref={menuRef}>
+            <button
+              type="button"
+              className="mf-topbar__user-menu"
+              onClick={() => setMenuOpen((prev) => !prev)}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  className="mf-topbar__avatar mf-topbar__avatar--image"
+                />
+              ) : (
+                <div className="mf-topbar__avatar">{initials}</div>
+              )}
 
-              <button
-                type="button"
-                className="mf-topbar__user-dropdown-item mf-topbar__user-dropdown-item--danger"
-                onClick={handleLogout}
-              >
-                Sign out
-              </button>
-            </div>
-          )}
+              <div className="mf-topbar__user-meta">
+                <span className="mf-topbar__user-name">{displayName}</span>
+                {shopName && (
+                  <span className="mf-topbar__user-role">
+                    {shopName}
+                  </span>
+                )}
+              </div>
+              <ChevronDown size={16} />
+            </button>
+
+            {menuOpen && (
+              <div className="mf-topbar__user-dropdown">
+                <button
+                  type="button"
+                  className="mf-topbar__user-dropdown-item"
+                >
+                  My profile
+                </button>
+                <button
+                  type="button"
+                  className="mf-topbar__user-dropdown-item"
+                >
+                  Account settings
+                </button>
+
+                <div className="mf-topbar__user-dropdown-separator" />
+
+                <button
+                  type="button"
+                  className="mf-topbar__user-dropdown-item mf-topbar__user-dropdown-item--danger"
+                  onClick={handleLogout}
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>

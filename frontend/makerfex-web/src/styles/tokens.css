@@ -53,6 +53,7 @@
   --mf-color-highlight: #00b5d8; /* turquoise */
 
   --mf-color-border: #d9dce8;
+  --mf-color-border-subtle: #d9dce8;
 
   /* Status colors */
   --mf-color-success: #2ab57d;
@@ -91,6 +92,7 @@
   --mf-color-highlight: #00d8e8;
 
   --mf-color-border: #3a3f55;
+  --mf-color-border-subtle: #3a3f55;
 
   --mf-btn-primary-bg: var(--mf-color-accent);
   --mf-btn-primary-text: #ffffff;
