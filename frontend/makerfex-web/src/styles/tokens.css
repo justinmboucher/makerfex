@@ -47,6 +47,7 @@
 
   --mf-color-text-primary: #2a2c35;
   --mf-color-text-secondary: #4a5568;
+  --mf-color-text-tertiary: #1a1c2a;
 
   --mf-color-accent: #5d5fef; /* indigo */
   --mf-color-highlight: #00b5d8; /* turquoise */
@@ -84,6 +85,7 @@
 
   --mf-color-text-primary: #f7f9fc;
   --mf-color-text-secondary: #b4bcd0;
+  --mf-color-text-tertiary: #1a1c2a;
 
   --mf-color-accent: #7879f1;
   --mf-color-highlight: #00d8e8;

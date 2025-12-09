@@ -134,7 +134,7 @@
 
 .mf-sidebar__link--active {
   background-color: var(--mf-color-highlight);
-  color: var(--mf-color-text-primary);
+  color: var(--mf-color-text-tertiary);
   transform: translateX(1px);
 }
 

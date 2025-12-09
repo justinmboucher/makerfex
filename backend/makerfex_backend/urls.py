@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from .search import GlobalSearchView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -14,6 +15,7 @@ urlpatterns = [
     ),
 
     # Domain APIs (we'll add per-app urls later)
+    path("api/search/", GlobalSearchView.as_view(), name="global-search"),
     path("api/accounts/", include("accounts.urls")),
     path("api/customers/", include("customers.urls")),
     path("api/workflows/", include("workflows.urls")),

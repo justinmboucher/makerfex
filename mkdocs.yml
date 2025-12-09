@@ -24,6 +24,7 @@ nav:
       - Overview: api/index.md
   - User Guide:
       - Getting Started: user-guide/getting-started.md
+      - Global Search: user-guide/global-search.md
       - Projects: user-guide/projects.md
       - Inventory: user-guide/inventory.md
 
