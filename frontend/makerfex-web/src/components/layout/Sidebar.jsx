@@ -1,52 +1,74 @@
 // src/components/layout/Sidebar.jsx
-import React, { useState } from "react";
+import React from "react";
 import { NavLink } from "react-router-dom";
-import "./Sidebar.css";
+import "../../styles/layout/Sidebar.css";
 
 function classNames(...parts) {
   return parts.filter(Boolean).join(" ");
 }
 
 /**
- * sections: [
- *  {
- *    id: "overview",
- *    title: "Overview",
- *    items: [
- *      { id: "dashboard", label: "Dashboard", icon: <Icon />, to: "/dashboard" },
- *      ...
- *    ]
- *  }
- * ]
+ * Sidebar
+ *
+ * Props:
+ * - sections: [
+ *     {
+ *       id: "overview",
+ *       title: "Overview",
+ *       items: [{ id, label, icon, to }]
+ *     }
+ *   ]
+ * - collapsed: boolean
+ * - onToggleCollapsed(): void
+ * - brandLabel: string
+ * - footerText: string
  */
-export function Sidebar({ sections, brandLabel = "Makerfex", footerText }) {
-  const [collapsed, setCollapsed] = useState(false);
-
+export function Sidebar({
+  sections,
+  collapsed = false,
+  onToggleCollapsed,
+  brandLabel = "Makerfex",
+  footerText = "Demo shop",
+}) {
   return (
-    <aside className={classNames("mf-sidebar", collapsed && "mf-sidebar--collapsed")}>
-      <div className="mf-sidebar__header">
+    <aside
+      className={classNames(
+        "mf-sidebar",
+        collapsed && "mf-sidebar--collapsed"
+      )}
+    >
+      {/* Brand + collapse toggle */}
+      <div className="mf-sidebar__brand-row">
         <div className="mf-sidebar__brand">
-          <div className="mf-sidebar__brand-icon">
-            <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "#fff" }}>M</span>
+          <div className="mf-sidebar__logo-mark">MF</div>
+          <div className="mf-sidebar__brand-text">
+            <div className="mf-sidebar__brand-name">{brandLabel}</div>
+            <div className="mf-sidebar__brand-tagline">
+              Shop ops command center
+            </div>
           </div>
-          <span className="mf-sidebar__brand-mark">{brandLabel}</span>
         </div>
 
         <button
           type="button"
-          className="mf-sidebar__toggle"
+          className="mf-sidebar__collapse-toggle"
+          onClick={onToggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          onClick={() => setCollapsed((prev) => !prev)}
         >
-          <span style={{ fontSize: "0.85rem" }}>{collapsed ? "»" : "«"}</span>
+          <span className="mf-sidebar__collapse-icon">
+            {collapsed ? "»" : "«"}
+          </span>
         </button>
       </div>
 
-      <nav className="mf-sidebar__nav">
+      {/* Nav sections */}
+      <nav className="mf-sidebar__nav" aria-label="Primary">
         {sections?.map((section) => (
-          <div key={section.id}>
-            <div className="mf-sidebar__section-title">{section.title}</div>
-            <div className="mf-sidebar__link-list">
+          <div key={section.id} className="mf-sidebar__section">
+            <div className="mf-sidebar__section-label">
+              {section.title}
+            </div>
+            <div className="mf-sidebar__section-items">
               {section.items?.map((item) => (
                 <NavLink
                   key={item.id}
@@ -54,14 +76,16 @@ export function Sidebar({ sections, brandLabel = "Makerfex", footerText }) {
                   className={({ isActive }) =>
                     classNames(
                       "mf-sidebar-link",
-                      isActive && "mf-sidebar-link--active",
+                      isActive && "mf-sidebar-link--active"
                     )
                   }
                 >
                   <span className="mf-sidebar-link__icon">
-                    {item.icon || <span style={{ width: 16 }} />}
+                    {item.icon}
                   </span>
-                  <span className="mf-sidebar-link__label">{item.label}</span>
+                  <span className="mf-sidebar-link__label">
+                    {item.label}
+                  </span>
                 </NavLink>
               ))}
             </div>
@@ -69,9 +93,10 @@ export function Sidebar({ sections, brandLabel = "Makerfex", footerText }) {
         ))}
       </nav>
 
+      {/* Footer */}
       <div className="mf-sidebar__footer">
-        {footerText && <div className="mf-sidebar__footer-label">{footerText}</div>}
-        <div>v1.0.0</div>
+        <span className="mf-sidebar__footer-pill">{footerText}</span>
+        <span className="mf-sidebar__footer-version">v1.0.0</span>
       </div>
     </aside>
   );

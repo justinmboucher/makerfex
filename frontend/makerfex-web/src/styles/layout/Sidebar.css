@@ -1,0 +1,206 @@
+/* src/components/layout/Sidebar.css */
+
+.mf-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  background-color: var(--mf-color-bg-secondary);
+  border-right: 1px solid var(--mf-color-border);
+  padding: var(--mf-space-4) var(--mf-space-3);
+  box-shadow: var(--mf-shadow-sm);
+  transition:
+    width var(--mf-transition-fast),
+    transform var(--mf-transition-fast);
+}
+
+.mf-sidebar--collapsed {
+  width: 76px;
+}
+
+/* Brand row */
+
+.mf-sidebar__brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-space-3);
+  margin-bottom: var(--mf-space-5);
+}
+
+.mf-sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-space-2);
+}
+
+.mf-sidebar__logo-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: linear-gradient(
+    135deg,
+    var(--mf-color-accent),
+    var(--mf-color-highlight)
+  );
+  color: #ffffff;
+}
+
+.mf-sidebar__brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mf-sidebar__brand-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--mf-color-text-primary);
+}
+
+.mf-sidebar__brand-tagline {
+  font-size: 0.75rem;
+  color: var(--mf-color-text-secondary);
+}
+
+.mf-sidebar__collapse-toggle {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--mf-color-text-secondary);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color var(--mf-transition-fast),
+    color var(--mf-transition-fast),
+    border-color var(--mf-transition-fast);
+}
+
+.mf-sidebar__collapse-toggle:hover {
+  border-color: var(--mf-color-border);
+  background-color: rgba(148, 163, 184, 0.15);
+}
+
+.mf-sidebar__collapse-icon {
+  font-size: 0.85rem;
+}
+
+/* Nav sections */
+
+.mf-sidebar__nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px; /* small scrollbar gutter */
+}
+
+.mf-sidebar__section {
+  margin-bottom: var(--mf-space-4);
+}
+
+.mf-sidebar__section-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mf-color-text-secondary);
+  margin-bottom: var(--mf-space-2);
+}
+
+.mf-sidebar__section-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Links */
+
+.mf-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-space-2);
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--mf-radius-md);
+  color: var(--mf-color-text-secondary);
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition:
+    background-color var(--mf-transition-fast),
+    color var(--mf-transition-fast);
+}
+
+.mf-sidebar-link__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+}
+
+.mf-sidebar-link__label {
+  white-space: nowrap;
+}
+
+.mf-sidebar-link:hover {
+  background-color: rgba(148, 163, 184, 0.12);
+  color: var(--mf-color-text-primary);
+}
+
+.mf-sidebar-link--active {
+  background: linear-gradient(
+    135deg,
+    rgba(93, 95, 239, 0.14),
+    rgba(0, 184, 217, 0.2)
+  );
+  color: var(--mf-color-text-primary);
+}
+
+/* Footer */
+
+.mf-sidebar__footer {
+  padding-top: var(--mf-space-3);
+  border-top: 1px solid var(--mf-color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-space-2);
+  font-size: 0.75rem;
+  color: var(--mf-color-text-secondary);
+}
+
+.mf-sidebar__footer-pill {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--mf-color-border);
+}
+
+.mf-sidebar__footer-version {
+  opacity: 0.8;
+}
+
+/* Collapsed mode tweaks */
+
+.mf-sidebar--collapsed .mf-sidebar__brand-text,
+.mf-sidebar--collapsed .mf-sidebar__section-label,
+.mf-sidebar--collapsed .mf-sidebar-link__label,
+.mf-sidebar--collapsed .mf-sidebar__footer-pill,
+.mf-sidebar--collapsed .mf-sidebar__footer-version {
+  display: none;
+}
+
+.mf-sidebar--collapsed .mf-sidebar__brand-row {
+  justify-content: center;
+}
+
+.mf-sidebar--collapsed .mf-sidebar-link {
+  justify-content: center;
+}
