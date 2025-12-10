@@ -166,3 +166,6 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Backend API for Makerfex shop operations platform.",
     "VERSION": "1.0.0",
 }
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"

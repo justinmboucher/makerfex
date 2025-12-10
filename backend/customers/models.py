@@ -4,49 +4,61 @@ from django.db import models
 from accounts.models import Shop, TimeStampedModel
 
 
+def customer_photo_upload_path(instance: "Customer", filename: str) -> str:
+  return f"shops/{instance.shop_id or 'new'}/customers/{instance.id or 'new'}/{filename}"
+
+
 class Customer(TimeStampedModel):
-    """
-    End-customer for a shop (Etsy buyers, local clients, etc.).
-    """
-    shop = models.ForeignKey(
-        Shop,
-        on_delete=models.CASCADE,
-        related_name="customers",
-    )
+  """
+  End-customer for a shop (Etsy buyers, local clients, etc.).
+  """
 
-    first_name = models.CharField(max_length=80)
-    last_name = models.CharField(max_length=80, blank=True)
-    email = models.EmailField(blank=True)
-    phone = models.CharField(max_length=50, blank=True)
+  shop = models.ForeignKey(
+    Shop,
+    on_delete=models.CASCADE,
+    related_name="customers",
+  )
 
-    company_name = models.CharField(max_length=150, blank=True)
+  # NEW: optional avatar/photo
+  photo = models.ImageField(
+    upload_to=customer_photo_upload_path,
+    blank=True,
+    null=True,
+    help_text="Optional customer avatar or logo.",
+  )
 
-    address_line1 = models.CharField(max_length=255, blank=True)
-    address_line2 = models.CharField(max_length=255, blank=True)
-    city = models.CharField(max_length=100, blank=True)
-    region = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text="State / province / region.",
-    )
-    postal_code = models.CharField(max_length=20, blank=True)
-    country_code = models.CharField(
-        max_length=2,
-        blank=True,
-        help_text="ISO 3166-1 alpha-2 country code (e.g. 'US').",
-    )
+  first_name = models.CharField(max_length=80)
+  last_name = models.CharField(max_length=80, blank=True)
+  email = models.EmailField(blank=True)
+  phone = models.CharField(max_length=50, blank=True)
+  company_name = models.CharField(max_length=150, blank=True)
 
-    is_vip = models.BooleanField(default=False)
-    notes = models.TextField(blank=True)
-    source = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text="Optional source label (e.g. 'Etsy', 'Website', 'Local fair').",
-    )
+  address_line1 = models.CharField(max_length=255, blank=True)
+  address_line2 = models.CharField(max_length=255, blank=True)
+  city = models.CharField(max_length=100, blank=True)
+  region = models.CharField(
+    max_length=100,
+    blank=True,
+    help_text="State / province / region.",
+  )
+  postal_code = models.CharField(max_length=20, blank=True)
+  country_code = models.CharField(
+    max_length=2,
+    blank=True,
+    help_text="ISO 3166-1 alpha-2 country code (e.g. 'US').",
+  )
 
-    class Meta:
-        ordering = ["shop", "first_name", "last_name"]
+  is_vip = models.BooleanField(default=False)
+  notes = models.TextField(blank=True)
+  source = models.CharField(
+    max_length=100,
+    blank=True,
+    help_text="Optional source label (e.g. 'Etsy', 'Website', 'Local fair').",
+  )
 
-    def __str__(self):
-        name = f"{self.first_name} {self.last_name}".strip()
-        return f"{name} ({self.shop.slug})"
+  class Meta:
+    ordering = ["shop", "first_name", "last_name"]
+
+  def __str__(self):
+    name = f"{self.first_name} {self.last_name}".strip()
+    return f"{name} ({self.shop.slug})"
