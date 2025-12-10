@@ -202,7 +202,6 @@ export function AppLayout({ children }) {
         <Topbar
           title={pageConfig.title}
           breadcrumbs={pageConfig.breadcrumbs}
-          primaryAction={pageConfig.primaryAction}
         />
 
         <div className="mf-shell__content">

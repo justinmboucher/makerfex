@@ -6,8 +6,9 @@
   flex-direction: column;
   flex-shrink: 0;
   width: 260px;
-  background-color: var(--mf-color-bg-secondary);
-  border-right: 1px solid var(--mf-color-border);
+  background-color: var(--mf-color-sidebar-bg);
+  color: var(--mf-color-sidebar-text);
+  border-right: 1px solid rgba(15, 23, 42, 0.9);
   padding: var(--mf-space-4) var(--mf-space-3);
   gap: var(--mf-space-4);
 }
@@ -23,6 +24,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--mf-space-2);
+  margin-bottom: var(--mf-space-5);
 }
 
 .mf-sidebar__brand {
@@ -54,6 +56,7 @@
   letter-spacing: 0.22em;
   text-transform: uppercase;
   text-align: center;
+  color: var(--mf-color-sidebar-text);
 }
 
 /* Collapse toggle */
@@ -67,7 +70,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--mf-color-text-secondary);
+  color: var(--mf-color-sidebar-muted);
   cursor: pointer;
   font-size: 0.9rem;
   padding: 0;
@@ -78,8 +81,13 @@
 }
 
 .mf-sidebar__collapse-toggle:hover {
-  border-color: var(--mf-color-border);
-  background-color: rgba(148, 163, 184, 0.16);
+  border-color: rgba(148, 163, 184, 0.6);
+  background-color: rgba(15, 23, 42, 0.6);
+  color: var(--mf-color-sidebar-text);
+}
+
+.mf-sidebar--collapsed .mf-sidebar__header {
+  margin-bottom: var(--mf-space-3);
 }
 
 /* Navigation */
@@ -89,28 +97,36 @@
   display: flex;
   flex-direction: column;
   gap: var(--mf-space-4);
-  margin-top: var(--mf-space-4); /* push links down a bit */
+  margin-top: var(--mf-space-6); /* push links down a bit */
 }
 
 .mf-sidebar__section {
   display: flex;
   flex-direction: column;
-  gap: var(--mf-space-1);
+  gap: var(--mf-space-2);
 }
 
+.mf-sidebar__section-title,
 .mf-sidebar__section-label {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: var(--mf-color-text-muted);
+  color: var(--mf-color-sidebar-muted);
   padding-inline: 0.4rem;
 }
 
+.mf-sidebar--collapsed .mf-sidebar__nav {
+  margin-top: var(--mf-space-3);
+}
+
+/* link group container */
 .mf-sidebar__section-items {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+
+/* Main nav link */
 
 .mf-sidebar__link {
   display: flex;
@@ -118,24 +134,15 @@
   gap: var(--mf-space-2);
   border-radius: var(--mf-radius-md);
   padding: 0.45rem 0.6rem;
-  color: var(--mf-color-text-secondary);
+  color: var(--mf-color-sidebar-text);
   text-decoration: none;
   font-size: 0.9rem;
+  opacity: 0.9;
   transition:
     background-color var(--mf-transition-fast),
     color var(--mf-transition-fast),
+    opacity var(--mf-transition-fast),
     transform var(--mf-transition-fast);
-}
-
-.mf-sidebar__link:hover {
-  color: var(--mf-color-text-primary);
-  background-color: color-mix(in srgb, var(--mf-color-accent) 25%, transparent);
-}
-
-.mf-sidebar__link--active {
-  background-color: var(--mf-color-highlight);
-  color: var(--mf-color-text-tertiary);
-  transform: translateX(1px);
 }
 
 .mf-sidebar__link-icon {
@@ -143,6 +150,22 @@
   align-items: center;
   justify-content: center;
   min-width: 20px;
+  color: var(--mf-color-sidebar-muted);
+}
+
+.mf-sidebar__link:hover {
+  opacity: 1;
+  background-color: rgba(148, 163, 184, 0.18); /* soft slate wash */
+}
+
+.mf-sidebar__link--active {
+  background-color: rgba(93, 95, 239, 0.35); /* indigo-ish */
+  color: #ffffff;
+  transform: translateX(1px);
+}
+
+.mf-sidebar__link--active .mf-sidebar__link-icon {
+  color: #ffffff;
 }
 
 /* Icon-only mode */
@@ -165,7 +188,7 @@
 
 .mf-sidebar__footer-divider {
   height: 1px;
-  background-color: var(--mf-color-border-subtle);
+  background-color: rgba(148, 163, 184, 0.45);
   margin-bottom: var(--mf-space-2);
 }
 
@@ -174,7 +197,7 @@
   align-items: center;
   gap: 0.4rem;
   font-size: 0.8rem;
-  color: var(--mf-color-text-secondary);
+  color: var(--mf-color-sidebar-muted);
   text-decoration: none;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -197,16 +220,15 @@
   justify-content: center;
 }
 
-/* Hover = accent */
 .mf-sidebar__footer-link:hover {
-  color: var(--mf-color-text-primary);
-  background-color: color-mix(in srgb, var(--mf-color-accent) 25%, transparent);
+  color: var(--mf-color-sidebar-text);
+  background-color: rgba(148, 163, 184, 0.18);
 }
 
-/* Active/selected = highlight */
+/* Active/selected footer link (if you ever mark it active) */
 .mf-sidebar__footer-link--active {
-  color: var(--mf-color-highlight);
-  background-color: var(--mf-color-highlight);
+  color: #ffffff;
+  background-color: rgba(93, 95, 239, 0.35);
 }
 
 /* Mobile: we can revisit later with a proper slide-out nav */

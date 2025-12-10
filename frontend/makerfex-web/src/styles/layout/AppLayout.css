@@ -3,7 +3,7 @@
 .mf-shell {
   min-height: 100vh;
   display: flex;
-  background-color: var(--mf-color-bg-primary);
+  background-color: var(--mf-color-bg-secondary); /* use the grey */
   color: var(--mf-color-text-primary);
 }
 
@@ -21,13 +21,14 @@
 .mf-shell__content {
   flex: 1;
   min-height: 0;
-  padding: var(--mf-space-6);
-  background-color: var(--mf-color-bg-primary);
+  padding: 0;
+  background-color: var(--mf-color-bg-secondary); /* consistent with shell */
   overflow-y: auto;
 }
 
 .mf-shell__content-inner {
-  max-width: 1200px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 
@@ -62,7 +63,7 @@
 /* Collapsed shell tweaks (mostly controlled in Sidebar) */
 
 .mf-shell--collapsed .mf-shell__content {
-  padding-left: var(--mf-space-5);
+  padding-left: calc(var(--mf-space-6) - var(--mf-space-1));
 }
 
 @media (max-width: 900px) {

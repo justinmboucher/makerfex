@@ -92,7 +92,6 @@ export function Topbar({
   title,
   breadcrumbs = [],
   onSearchChange,
-  primaryAction,
 }) {
   const auth = useAuth();
   const { user, shop, logout } = auth || {};
@@ -104,6 +103,11 @@ export function Topbar({
   const displayName = getDisplayName(user);
   const initials = getInitialsFromName(displayName);
   const shopName = shop?.name || "MAKERFEX shop";
+
+  const shopTagline =
+  shop?.legal_name ||
+  shop?.website ||
+  null;
 
   const shopLogoUrl =
     shop?.logo_url || shop?.logo || shop?.logoUrl || null;
@@ -176,10 +180,12 @@ export function Topbar({
             )}
 
             <div className="mf-topbar__title-stack">
-              {title && <h1 className="mf-topbar__title">{title}</h1>}
               {shopName && (
+                <h1 className="mf-topbar__title">{shopName}</h1>
+              )}
+              {shopTagline && (
                 <span className="mf-topbar__subtitle mf-topbar__subtitle--shop">
-                  {shopName}
+                  {shopTagline}
                 </span>
               )}
             </div>
@@ -193,18 +199,6 @@ export function Topbar({
           <div className="mf-topbar__search">
             <GlobalSearch onSearchChange={onSearchChange} />
           </div>
-
-          {primaryAction && (
-            <Button
-              variant="primary"
-              size="sm"
-              as={primaryAction.to ? Link : "button"}
-              to={primaryAction.to}
-              onClick={primaryAction.onClick}
-            >
-              {primaryAction.label}
-            </Button>
-          )}
 
           {/* Theme toggle */}
           <button

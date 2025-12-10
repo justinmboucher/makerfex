@@ -75,6 +75,10 @@
 
   /* Transitions */
   --mf-transition-fast: 120ms ease-out;
+
+  --mf-color-sidebar-bg: #1e293b;      /* dark, cool */
+  --mf-color-sidebar-text: #f8fafc;
+  --mf-color-sidebar-muted: #94a3b8;    /* icons, labels */
 }
 
 /* Dark mode overrides */
@@ -104,4 +108,8 @@
 
   --mf-btn-ghost-text: var(--mf-color-text-primary);
   --mf-btn-ghost-bg-hover: rgba(148, 163, 184, 0.16);
+
+  --mf-color-sidebar-bg: #1e293b;     /* dark, cool */
+  --mf-color-sidebar-text: #f8fafc;
+  --mf-color-sidebar-muted: #94a3b8;    /* icons, labels */
 }

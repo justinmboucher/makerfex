@@ -6,11 +6,14 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background-color: var(--mf-color-bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-space-4);
+  padding: var(--mf-space-3) var(--mf-space-6);
+  background-color: var(--mf-color-bg-secondary);  /* same as cards */
+  /* border-bottom: 1px solid var(--mf-color-border-subtle); */
   backdrop-filter: blur(14px);
-  border-bottom: none; /* remove old divider */
-  box-shadow: none;
-  transition: box-shadow 0.12s ease-out;
 }
 
 .app-has-scroll .mf-topbar {
@@ -23,7 +26,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--mf-space-4);
-  padding: var(--mf-space-3) var(--mf-space-6);
+  /* padding: var(--mf-space-3) var(--mf-space-6); */
   width: 100%;
 }
 
