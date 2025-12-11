@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from .search import GlobalSearchView
+from analytics.views import AnalyticsMetricView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -16,7 +17,14 @@ urlpatterns = [
         name="api-docs",
     ),
 
-    # Domain APIs (we'll add per-app urls later)
+    # Global dashboard metrics endpoint
+    path(
+        "api/analytics/metrics/",
+        AnalyticsMetricView.as_view(),
+        name="dashboard-metric",
+    ),
+
+    # Domain APIs
     path("api/search/", GlobalSearchView.as_view(), name="global-search"),
     path("api/accounts/", include("accounts.urls")),
     path("api/customers/", include("customers.urls")),
@@ -30,6 +38,5 @@ urlpatterns = [
     path("api/assistants/", include("assistants.urls")),
     path("api/config/", include("config.urls")),
 ]
-
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

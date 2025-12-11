@@ -10,7 +10,16 @@ import {
   Activity,
 } from "lucide-react";
 
+import { cardDefinitions } from "../dashboard/cardDefinitions";
+import { ownerExecDashboardConfig } from "../dashboard/ownerDashboardConfig";
+import { DashboardCardController } from "../dashboard/DashboardCardController";
+
 export function DashboardPage() {
+  const layout = ownerExecDashboardConfig.layout;
+
+  // TODO: replace with real capabilities from the authenticated user
+  const currentUserCapabilities = ["view_shop_aggregates"];
+
   return (
     <PageShell
       title="Dashboard"
@@ -22,72 +31,57 @@ export function DashboardPage() {
         onClick: () => console.log("TODO: open create project flow"),
       }}
     >
+      {/* static metric row */}
       <PageSection className="mf-page-section--bare">
-        <div className="mf-metric-grid">
-          <MetricCard
-            label="Active projects"
-            value={12}
-            secondaryLabel="In queue"
-            secondaryValue="3 starting this week"
-            trendLabel="vs last 30 days"
-            trendValue="+4"
-            trendDirection="up"
-            icon={<Package size={16} />}
-          />
+        <div className="dashboard-grid metrics-grid">
+          {layout
+            .filter((i) =>
+              ["metric-active-projects", "metric-overdue-projects"].includes(i.instanceId)
+            )
+            .map((instance) => {
+              const def = cardDefinitions[instance.cardId];
+              return (
+                <div key={instance.instanceId} className="dashboard-grid__item">
+                  <DashboardCardController
+                    definition={def}
+                    instance={instance}
+                    currentUserCapabilities={currentUserCapabilities}
+                  />
+                </div>
+              );
+            })}
+        </div>
+      </PageSection>
 
-          <MetricCard
-            label="Avg. hourly rate"
-            prefix="$"
-            value="68"
-            suffix="/hr"
-            trendLabel="realized"
-            trendValue="+$5"
-            trendDirection="up"
-            icon={<DollarSign size={16} />}
-            tone="success"
-          />
+      {/* New: Live Slice A metrics driven by the backend */}
+      <PageSection>
+        <div className="mf-page-section__header">
+          <div>
+            <h2 className="mf-page-section__title">Live projects overview</h2>
+            <p className="mf-page-section__subtitle">
+              Active/overdue projects and WIP by stage, powered by your data.
+            </p>
+          </div>
+        </div>
 
-          <MetricCard
-            label="Overdue tasks"
-            value={7}
-            trendLabel="past due"
-            trendValue="+2"
-            trendDirection="down"
-            icon={<Clock size={16} />}
-            tone="danger"
-          />
+        <div className="dashboard-grid">
+          {layout.map((instance) => {
+            const def = cardDefinitions[instance.cardId];
+            if (!def) return null;
 
-          <MetricCard
-            label="Monthly revenue (est.)"
-            prefix="$"
-            value="4.8k"
-            trendLabel="projection"
-            trendValue="+12%"
-            trendDirection="up"
-            icon={<TrendingUp size={16} />}
-          />
-
-          <MetricCard
-            label="On-time completion"
-            value="84%"
-            trendLabel="last 30 days"
-            trendValue="+6 pts"
-            trendDirection="up"
-            icon={<Activity size={16} />}
-            tone="warning"
-          />
-
-          <MetricCard
-            label="Shop capacity"
-            value="72%"
-            secondaryLabel="Next 14 days"
-            secondaryValue="Moderate load"
-            trendLabel="utilization"
-            trendValue="+9 pts"
-            trendDirection="up"
-            icon={<Package size={16} />}
-            tone="neutral"
-          />
+            return (
+              <div
+                key={instance.instanceId}
+                className="dashboard-grid__item"
+              >
+                <DashboardCardController
+                  definition={def}
+                  instance={instance}
+                  currentUserCapabilities={currentUserCapabilities}
+                />
+              </div>
+            );
+          })}
         </div>
       </PageSection>
 
