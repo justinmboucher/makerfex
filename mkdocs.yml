@@ -25,6 +25,10 @@ nav:
   - User Guide:
       - Getting Started: user-guide/getting-started.md
       - Global Search: user-guide/global-search.md
+      - Dashboards:
+          - Introduction to Dashboards: user-guide/dashboards/dashboards_intro.md
+          - Owner Dashboard Walkthrough: user-guide/dashboards/dashboard_owner_walkthrough.md
+          - Employee Dashboard Walkthrough: user-guide/dashboards/dashboard_employee_walkthrough.md
       - Projects: user-guide/projects.md
       - Inventory: user-guide/inventory.md
 
