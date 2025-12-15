@@ -1,8 +1,13 @@
-/* src/styles/tokens.css */
+/* src/styles/tokens.css
+   --------------------------------------------------------------------------
+   Makerfex Design Tokens
+   - Theme-agnostic base tokens
+   - Light defaults + dark overrides
+   - Semantic accents (colors mean something)
+   -------------------------------------------------------------------------- */
 
-/* Base tokens (theme-agnostic) */
 :root {
-  /* Color scheme hint for the browser */
+  /* Browser hint */
   color-scheme: light;
 
   /* Radii */
@@ -18,10 +23,6 @@
   --mf-space-4: 16px;
   --mf-space-5: 24px;
   --mf-space-6: 32px;
-
-  /* Shadows */
-  --mf-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
-  --mf-shadow-md: 0 4px 10px rgba(15, 23, 42, 0.14);
 
   /* Typography */
   --mf-font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Inter",
@@ -39,29 +40,45 @@
   --mf-line-height-normal: 1.4;
   --mf-line-height-relaxed: 1.6;
 
-  /* Semantic color tokens (light mode defaults) */
+  /* Shadows */
+  --mf-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --mf-shadow-md: 0 4px 10px rgba(15, 23, 42, 0.14);
 
-  /* Light Mode */
-  --mf-color-bg-primary: #fcfcff;
-  --mf-color-bg-secondary: #eff1f9;
+  /* ------------------------------------------------------------------------
+     Semantic accents (meaning-first)
+     ------------------------------------------------------------------------ */
+  --mf-accent-neutral: #5b6bff;   /* volume / normal */
+  --mf-accent-capacity: #5b6bff;  /* capacity/commitment (hero) */
+  --mf-accent-risk: #f59e0b;      /* urgent / overdue */
+  --mf-accent-danger: #ef4444;    /* severe */
+  --mf-accent-success: #22c55e;   /* good / improving */
+  --mf-accent-revenue: #a855f7;   /* contextual revenue */
+
+  /* ------------------------------------------------------------------------
+     Light mode color system
+     ------------------------------------------------------------------------ */
+  --mf-color-bg-primary: #fcfcff;   /* page */
+  --mf-color-bg-secondary: #eff1f9; /* page sections / subtle fills */
+  --mf-color-bg-surface: #ffffff;  /* cards / surfaces */
 
   --mf-color-text-primary: #2a2c35;
   --mf-color-text-secondary: #4a5568;
   --mf-color-text-tertiary: #1a1c2a;
 
-  --mf-color-accent: #5d5fef; /* indigo */
-  --mf-color-highlight: #00b5d8; /* turquoise */
-
   --mf-color-border: #d9dce8;
   --mf-color-border-subtle: #d9dce8;
 
-  /* Status colors */
-  --mf-color-success: #2ab57d;
-  --mf-color-warning: #f9c74f;
-  --mf-color-danger: #e5484d;
+  /* Brand / accent */
+  --mf-color-accent: var(--mf-accent-neutral); /* single source of truth */
+  --mf-color-highlight: #00b5d8; /* turquoise */
+
+  /* Status colors (map to semantics) */
+  --mf-color-success: var(--mf-accent-success);
+  --mf-color-warning: var(--mf-accent-risk);
+  --mf-color-danger: var(--mf-accent-danger);
   --mf-color-info: var(--mf-color-highlight);
 
-  /* Button-specific semantic aliases */
+  /* Buttons */
   --mf-btn-primary-bg: var(--mf-color-accent);
   --mf-btn-primary-text: #ffffff;
   --mf-btn-primary-bg-hover: #7072ff;
@@ -76,9 +93,10 @@
   /* Transitions */
   --mf-transition-fast: 120ms ease-out;
 
-  --mf-color-sidebar-bg: #1e293b;      /* dark, cool */
+  /* Sidebar */
+  --mf-color-sidebar-bg: #1e293b;
   --mf-color-sidebar-text: #f8fafc;
-  --mf-color-sidebar-muted: #94a3b8;    /* icons, labels */
+  --mf-color-sidebar-muted: #94a3b8;
 }
 
 /* Dark mode overrides */
@@ -87,16 +105,17 @@
 
   --mf-color-bg-primary: #1a1c2a;
   --mf-color-bg-secondary: #252a40;
+  --mf-color-bg-surface: #20243a;
 
   --mf-color-text-primary: #f7f9fc;
   --mf-color-text-secondary: #b4bcd0;
   --mf-color-text-tertiary: #1a1c2a;
 
-  --mf-color-accent: #7879f1;
-  --mf-color-highlight: #00d8e8;
-
   --mf-color-border: #3a3f55;
   --mf-color-border-subtle: #3a3f55;
+
+  --mf-color-accent: #7879f1;
+  --mf-color-highlight: #00d8e8;
 
   --mf-btn-primary-bg: var(--mf-color-accent);
   --mf-btn-primary-text: #ffffff;
@@ -109,7 +128,7 @@
   --mf-btn-ghost-text: var(--mf-color-text-primary);
   --mf-btn-ghost-bg-hover: rgba(148, 163, 184, 0.16);
 
-  --mf-color-sidebar-bg: #1e293b;     /* dark, cool */
+  --mf-color-sidebar-bg: #1e293b;
   --mf-color-sidebar-text: #f8fafc;
-  --mf-color-sidebar-muted: #94a3b8;    /* icons, labels */
+  --mf-color-sidebar-muted: #94a3b8;
 }

@@ -40,9 +40,7 @@ function getDisplayName(user) {
   if (user.name) return toTitleCase(user.name);
 
   if (user.username) {
-    const cleaned = user.username
-      .replace(/[@]/g, " ")
-      .replace(/[._-]/g, " ");
+    const cleaned = user.username.replace(/[@]/g, " ").replace(/[._-]/g, " ");
     const parts = cleaned.split(/\s+/).filter(Boolean);
 
     if (parts.length >= 2) return toTitleCase(`${parts[0]} ${parts[1]}`);
@@ -88,10 +86,22 @@ function useTheme() {
 // Component
 // ------------------------
 
+/**
+ * Topbar
+ *
+ * Global app header.
+ * Handles:
+ * - Breadcrumbs + shop identity
+ * - Global search
+ * - Theme toggle
+ * - Notifications button (delegates action to AppLayout)
+ * - User menu
+ */
 export function Topbar({
   title,
   breadcrumbs = [],
   onSearchChange,
+  onNotificationsClick,
 }) {
   const auth = useAuth();
   const { user, shop, logout } = auth || {};
@@ -104,13 +114,9 @@ export function Topbar({
   const initials = getInitialsFromName(displayName);
   const shopName = shop?.name || "MAKERFEX shop";
 
-  const shopTagline =
-  shop?.legal_name ||
-  shop?.website ||
-  null;
+  const shopTagline = shop?.legal_name || shop?.website || null;
 
-  const shopLogoUrl =
-    shop?.logo_url || shop?.logo || shop?.logoUrl || null;
+  const shopLogoUrl = shop?.logo_url || shop?.logo || shop?.logoUrl || null;
 
   const avatarUrl =
     user?.avatar_url ||
@@ -128,7 +134,6 @@ export function Topbar({
   }, []);
 
   async function handleLockScreen() {
-    // TODO: implement real lock logic (route to /lock, clear tokens, etc.)
     console.log("Lock screen requested");
     setMenuOpen(false);
   }
@@ -147,13 +152,8 @@ export function Topbar({
   return (
     <header className="mf-topbar">
       <div className="mf-topbar__inner">
-
-        {/* ------------------------ */}
         {/* LEFT SIDE */}
-        {/* ------------------------ */}
         <div className="mf-topbar__left">
-
-          {/* Breadcrumbs */}
           <div className="mf-topbar__breadcrumbs">
             {breadcrumbs.length > 0 ? (
               breadcrumbs.map((crumb, idx) => (
@@ -163,26 +163,17 @@ export function Topbar({
                 </span>
               ))
             ) : (
-              <span className="mf-topbar__crumb mf-topbar__title-fallback">
-                {title}
-              </span>
+              <span className="mf-topbar__crumb mf-topbar__title-fallback">{title}</span>
             )}
           </div>
 
-          {/* Logo + Title/Shop Row */}
           <div className="mf-topbar__title-row">
             {shopLogoUrl && (
-              <img
-                src={shopLogoUrl}
-                alt={shopName}
-                className="mf-topbar__shop-logo"
-              />
+              <img src={shopLogoUrl} alt={shopName} className="mf-topbar__shop-logo" />
             )}
 
             <div className="mf-topbar__title-stack">
-              {shopName && (
-                <h1 className="mf-topbar__title">{shopName}</h1>
-              )}
+              {shopName && <h1 className="mf-topbar__title">{shopName}</h1>}
               {shopTagline && (
                 <span className="mf-topbar__subtitle mf-topbar__subtitle--shop">
                   {shopTagline}
@@ -192,15 +183,12 @@ export function Topbar({
           </div>
         </div>
 
-        {/* ------------------------ */}
         {/* RIGHT SIDE */}
-        {/* ------------------------ */}
         <div className="mf-topbar__right">
           <div className="mf-topbar__search">
             <GlobalSearch onSearchChange={onSearchChange} />
           </div>
 
-          {/* Theme toggle */}
           <button
             type="button"
             className="mf-topbar__icon-button"
@@ -215,6 +203,7 @@ export function Topbar({
             type="button"
             className="mf-topbar__icon-button"
             aria-label="Notifications"
+            onClick={onNotificationsClick}
           >
             <Bell size={18} />
           </button>
@@ -238,9 +227,7 @@ export function Topbar({
 
               <div className="mf-topbar__user-meta">
                 <span className="mf-topbar__user-name">{displayName}</span>
-                {shopName && (
-                  <span className="mf-topbar__user-role">{shopName}</span>
-                )}
+                {shopName && <span className="mf-topbar__user-role">{shopName}</span>}
               </div>
 
               <ChevronDown size={16} />
@@ -248,18 +235,12 @@ export function Topbar({
 
             {menuOpen && (
               <div className="mf-topbar__user-dropdown">
-                <button
-                  type="button"
-                  className="mf-topbar__user-dropdown-item"
-                >
+                <button type="button" className="mf-topbar__user-dropdown-item">
                   <User size={16} className="mf-topbar__user-dropdown-icon" />
                   <span>My profile</span>
                 </button>
 
-                <button
-                  type="button"
-                  className="mf-topbar__user-dropdown-item"
-                >
+                <button type="button" className="mf-topbar__user-dropdown-item">
                   <UserCog size={16} className="mf-topbar__user-dropdown-icon" />
                   <span>Account settings</span>
                 </button>
@@ -287,7 +268,6 @@ export function Topbar({
             )}
           </div>
         </div>
-
       </div>
     </header>
   );

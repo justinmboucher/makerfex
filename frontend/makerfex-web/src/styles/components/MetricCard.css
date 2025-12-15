@@ -1,176 +1,192 @@
-/* src/styles/components/MetricCard.css */
+/* src/styles/components/MetricCard.css
+   --------------------------------------------------------------------------
+   MetricCard (single value + trend + sparkline)
+   Matches your reference:
+   - Full-height left accent strip
+   - Title + big number + trend/timeframe inside card
+   - Icon tile top-right
+   - Sparkline bottom-right
+   -------------------------------------------------------------------------- */
 
 .mf-metric-card {
+  --mf-metric-accent: var(--mf-accent-neutral);
+
+  position: relative;
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr);
   border-radius: var(--mf-radius-lg);
   border: 1px solid var(--mf-color-border-subtle);
-  background: var(--mf-color-bg-primary); /* primary surface = card */
-  padding: var(--mf-space-3);
+  background: var(--mf-color-bg-primary);
+  box-shadow: var(--mf-shadow-sm);
+  overflow: hidden;
+}
+
+/* The colored strip */
+.mf-metric-card__accent {
+  background: var(--mf-metric-accent);
+}
+
+/* Card body */
+.mf-metric-card__content {
+  padding: 16px 18px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--mf-space-2);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  gap: 10px;
 }
 
-/* tone variations */
-
-.mf-metric-card--success {
-  border-color: rgba(34, 197, 94, 0.55);
-  background-image: linear-gradient(
-    135deg,
-    rgba(34, 197, 94, 0.06),
-    transparent
-  );
-}
-
-.mf-metric-card--danger {
-  border-color: rgba(239, 68, 68, 0.55);
-  background-image: linear-gradient(
-    135deg,
-    rgba(239, 68, 68, 0.06),
-    transparent
-  );
-}
-
-.mf-metric-card--warning {
-  border-color: rgba(245, 158, 11, 0.6);
-  background-image: linear-gradient(
-    135deg,
-    rgba(245, 158, 11, 0.07),
-    transparent
-  );
-}
-
-/* header */
-
-.mf-metric-card__header {
+/* Top row: left text + right icon */
+.mf-metric-card__top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--mf-space-2);
+  gap: 14px;
 }
 
-.mf-metric-card__label-group {
+.mf-metric-card__right {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.mf-metric-card__label {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--mf-color-text-secondary);
-}
-
-.mf-metric-card__secondary {
-  font-size: 0.75rem;
-  color: var(--mf-color-text-secondary);
-}
-
-.mf-metric-card__secondary-label {
-  opacity: 0.9;
-  margin-right: 4px;
-}
-
-.mf-metric-card__secondary-value {
-  font-weight: 500;
-}
-
-.mf-metric-card__icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(148, 163, 184, 0.15);
-  color: var(--mf-color-text-secondary);
-}
-
-/* value row */
-
-.mf-metric-card__value-row {
-  display: flex;
   align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--mf-space-2);
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
+.mf-metric-card__meta {
+  min-width: 0;
+}
+
+.mf-metric-card__title {
+  font-size: 0.82rem;
+  font-weight: 750;
+  color: var(--mf-color-text-primary);
+  margin-bottom: 6px;
+}
+
+/* Big value */
 .mf-metric-card__value {
-  font-size: 1.6rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  display: flex;
+  display: inline-flex;
   align-items: baseline;
   gap: 4px;
 }
 
-.mf-metric-card__value-prefix,
-.mf-metric-card__value-suffix {
-  font-size: 0.9rem;
-  color: var(--mf-color-text-secondary);
+.mf-metric-card__number {
+  font-size: 1.75rem;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+  color: var(--mf-color-text-primary);
+  line-height: 1.05;
 }
 
-/* trend */
+.mf-metric-card__unit {
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: var(--mf-color-text-primary);
+  opacity: 0.9;
+}
 
+/* Trend row */
 .mf-metric-card__trend {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-  font-size: 0.75rem;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
-.mf-metric-card__trend-value {
-  font-weight: 600;
+.mf-metric-card__trend-pct {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.mf-metric-card__trend-label {
+.mf-metric-card__trend-arrow {
+  font-size: 0.85rem;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.mf-metric-card__trend-timeframe {
+  font-weight: 650;
   color: var(--mf-color-text-secondary);
 }
 
-/* trend colors */
-
-.mf-metric-card__trend--up .mf-metric-card__trend-value {
-  color: #16a34a;
+/* Trend coloring */
+.mf-metric-card__trend.is-up .mf-metric-card__trend-pct {
+  color: var(--mf-color-success);
 }
 
-.mf-metric-card__trend--down .mf-metric-card__trend-value {
-  color: #dc2626;
+.mf-metric-card__trend.is-down .mf-metric-card__trend-pct {
+  color: var(--mf-color-danger);
 }
 
-.mf-metric-card__trend--flat .mf-metric-card__trend-value {
+.mf-metric-card__trend.is-flat .mf-metric-card__trend-pct {
   color: var(--mf-color-text-secondary);
 }
 
-/* metric grid */
+/* Icon tile */
+.mf-metric-card__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
 
-.mf-metric-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--mf-space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--mf-metric-accent);
+  background: color-mix(in srgb, var(--mf-metric-accent) 14%, transparent);
 }
 
-/* Optional: hard-force 1 column on very small screens */
-@media (max-width: 640px) {
-  .mf-metric-grid {
-    grid-template-columns: 1fr;
+/* Sparkline sits under icon area, aligned right */
+.mf-metric-card__sparkline {
+  width: 70px;
+  opacity: 0.95;
+  margin-top: -2px; /* pulls it up just a touch */
+}
+
+/* Tone helpers (set the accent strip/icon/sparkline) */
+.mf-metric-card.tone-neutral {
+  --mf-metric-accent: var(--mf-accent-neutral);
+}
+
+.mf-metric-card.tone-risk {
+  --mf-metric-accent: var(--mf-accent-risk);
+}
+
+.mf-metric-card.tone-success {
+  --mf-metric-accent: var(--mf-accent-success);
+}
+
+.mf-metric-card.tone-revenue {
+  --mf-metric-accent: var(--mf-accent-revenue);
+}
+
+.mf-metric-card.tone-capacity {
+  --mf-metric-accent: var(--mf-accent-capacity);
+}
+
+.mf-metric-card.tone-danger {
+  --mf-metric-accent: var(--mf-accent-danger);
+}
+
+/* Responsive: allow sparkline to shrink without breaking layout */
+@media (max-width: 520px) {
+  .mf-metric-card__content {
+    padding: 14px 14px;
+  }
+
+  .mf-metric-card__sparkline {
+    width: 40px;
   }
 }
 
-@media (max-width: 1200px) {
-  .mf-metric-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+.mf-metric-card__trend.is-good .mf-metric-card__trend-pct {
+  color: var(--mf-color-success);
 }
-
-@media (max-width: 900px) {
-  .mf-metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.mf-metric-card__trend.is-bad .mf-metric-card__trend-pct {
+  color: var(--mf-color-danger);
 }
-
-@media (max-width: 640px) {
-  .mf-metric-grid {
-    grid-template-columns: 1fr;
-  }
+.mf-metric-card__trend.is-flat .mf-metric-card__trend-pct {
+  color: var(--mf-color-text-secondary);
 }

@@ -1,53 +1,45 @@
 // src/dashboard/ownerDashboardConfig.js
-
-// Minimal Slice A dashboard for shop owners
+// Owner dashboard: time-first, capacity-first narrative.
+// Revenue is contextual (handled in insight rail later).
 
 export const ownerExecDashboardConfig = {
-  id: "owner_exec_default_slice_a",
-  name: "Owner – Projects overview",
+  id: "owner_exec_default",
+  name: "Owner – Capacity & Commitment",
   ownerType: "ROLE",
   ownerId: "OWNER",
+
+  // NOTE: We keep the existing "layout array" pattern so the current card system stays intact.
+  // We add "slot" to support the canonical 3-column overview layout.
   layout: [
+    // LEFT KPI STACK (urgency first)
     {
-      instanceId: "metric-active-projects",
+      instanceId: "kpi-active-projects",
       cardId: "active_projects_metric",
-      position: { x: 0, y: 0, w: 2, h: 1 }
+      slot: "left",
+      position: { x: 0, y: 0, w: 2, h: 1 },
     },
     {
-      instanceId: "metric-overdue-projects",
-      cardId: "overdue_tasks_metric",
-      position: { x: 2, y: 0, w: 2, h: 1 }
+      instanceId: "kpi-overdue-projects",
+      cardId: "overdue_projects_metric",
+      slot: "left",
+      position: { x: 0, y: 1, w: 2, h: 1 },
     },
     {
-      instanceId: "wip-by-stage",
-      cardId: "wip_by_stage",
-      position: { x: 0, y: 1, w: 6, h: 3 },
-      overrides: {},
-    },
-    {
-      instanceId: "throughput-30d",
-      cardId: "throughput_30d",
-      position: { x: 0, y: 4, w: 6, h: 3 },
-      overrides: {
-        timeRange: "30d",
-        chartType: "line",
-      },
-    },
-    {
-      instanceId: "top-overdue",
-      cardId: "top_overdue_projects",
-      position: { x: 0, y: 8, w: 6, h: 4 },
-      overrides: {
-        timeRange: "30d",
-      },
-    },
-    {
-      instanceId: "throughput-30d-sparkline",
+      instanceId: "kpi-throughput-sparkline",
       cardId: "throughput_30d_sparkline",
-      position: { x: 0, y: 5, w: 3, h: 2 },
-      overrides: {
-        timeRange: "30d",
-      },
+      slot: "left",
+      position: { x: 0, y: 2, w: 2, h: 1 },
+      overrides: { timeRange: "30d" },
+    },
+
+    // CENTER HERO (default focus: Capacity & Commitment)
+    // Using your existing metric key for now to avoid backend guessing.
+    {
+      instanceId: "hero-capacity-commitment",
+      cardId: "projects_flow_test_hero", // capacity_commitment_hero
+      slot: "hero",
+      position: { x: 2, y: 0, w: 6, h: 4 },
+      overrides: { timeRange: "30d" },
     },
   ],
 };

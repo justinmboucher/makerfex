@@ -1,9 +1,15 @@
-/* App shell layout */
+/* src/styles/layout/AppLayout.css
+   --------------------------------------------------------------------------
+   Makerfex App Shell Layout
+   - Left sidebar + main column
+   - Topbar
+   - Content row supports optional RIGHT drawer (layout-level sidebar)
+   -------------------------------------------------------------------------- */
 
 .mf-shell {
   min-height: 100vh;
   display: flex;
-  background-color: var(--mf-color-bg-secondary); /* use the grey */
+  background-color: var(--mf-color-bg-secondary);
   color: var(--mf-color-text-primary);
 }
 
@@ -17,58 +23,87 @@
 }
 
 /* Content area under topbar */
-
 .mf-shell__content {
   flex: 1;
   min-height: 0;
   padding: 0;
-  background-color: var(--mf-color-bg-secondary); /* consistent with shell */
-  overflow-y: auto;
+  background-color: var(--mf-color-bg-secondary);
+  overflow: hidden; /* row handles scrolling */
 }
 
+/* Content row = main content + optional right drawer */
+.mf-shell__content-row {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--mf-space-4, 16px);
+  align-items: stretch;
+  min-height: 0;
+
+  /* IMPORTANT:
+     No padding here so the right drawer can be FLUSH to the shell edge.
+     Main padding is applied inside mf-shell__content-inner instead.
+  */
+  padding: 0;
+}
+
+/* Main content (scrollable) */
 .mf-shell__content-inner {
   width: 100%;
   max-width: none;
   margin: 0 auto;
+
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+
+  /* Main page padding lives here */
+  padding: var(--mf-space-4, 16px);
+}
+
+/* Right drawer column (flush to the edge) */
+.mf-shell__right-drawer {
+  min-width: 0;
+  min-height: 0;
+
+  /* No padding so it sits flush right/bottom */
+  padding: 0;
+}
+
+/* When drawer is closed: collapse to handle width */
+.mf-shell--drawer-closed .mf-shell__content-row {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+
+/* When drawer is disabled for a route: full width */
+.mf-shell--no-right-drawer .mf-shell__content-row {
+  grid-template-columns: 1fr;
 }
 
 /* 12-column grid helper for dashboard-style layouts */
-
 .mf-grid-12 {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--mf-space-4);
 }
-
-.mf-grid-span-3 {
-  grid-column: span 3 / span 3;
-}
-
-.mf-grid-span-4 {
-  grid-column: span 4 / span 4;
-}
-
-.mf-grid-span-6 {
-  grid-column: span 6 / span 6;
-}
-
-.mf-grid-span-8 {
-  grid-column: span 8 / span 8;
-}
-
-.mf-grid-span-12 {
-  grid-column: span 12 / span 12;
-}
+.mf-grid-span-3 { grid-column: span 3 / span 3; }
+.mf-grid-span-4 { grid-column: span 4 / span 4; }
+.mf-grid-span-6 { grid-column: span 6 / span 6; }
+.mf-grid-span-8 { grid-column: span 8 / span 8; }
+.mf-grid-span-12 { grid-column: span 12 / span 12; }
 
 /* Collapsed shell tweaks (mostly controlled in Sidebar) */
-
-.mf-shell--collapsed .mf-shell__content {
+.mf-shell--collapsed .mf-shell__content-inner {
   padding-left: calc(var(--mf-space-6) - var(--mf-space-1));
 }
 
 @media (max-width: 900px) {
-  .mf-shell__content {
-    padding: var(--mf-space-4);
+  .mf-shell__content-row {
+    grid-template-columns: 1fr;
+  }
+
+  .mf-shell--drawer-closed .mf-shell__content-row {
+    grid-template-columns: 1fr;
   }
 
   .mf-shell__content-inner {

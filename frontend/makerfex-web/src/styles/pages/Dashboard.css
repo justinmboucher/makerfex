@@ -1,0 +1,66 @@
+/* src/styles/pages/Dashboard.css
+   --------------------------------------------------------------------------
+   Owner Dashboard layout styling (page content only)
+   - Creates the "big chrome panel" surface behind the KPI stack + hero chart
+   - Uses grid layout: left KPI stack + center hero
+   - Right insight drawer is handled by AppLayout, not here
+   -------------------------------------------------------------------------- */
+
+.owner-dashboard-surface {
+  background: var(--mf-color-bg-primary);
+  border: 1px solid var(--mf-color-border-subtle);
+  border-radius: var(--mf-radius-lg);
+  box-shadow: var(--mf-shadow-sm);
+  padding: var(--mf-space-4);
+}
+
+/* Two-column dashboard grid */
+.owner-dashboard {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--mf-space-4);
+  align-items: start;
+}
+
+/* Left KPI stack */
+.owner-dashboard__left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-space-4);
+  min-width: 0;
+}
+
+/* Center hero chart */
+.owner-dashboard__center {
+  min-width: 0; /* lets charts shrink properly */
+}
+
+/* Make the hero feel like the "main event" */
+.owner-dashboard__center .dashboard-card,
+.owner-dashboard__center .mf-card.dashboard-card {
+  min-height: 420px;
+}
+
+/* Tighten vertical rhythm on smaller screens */
+@media (max-width: 1200px) {
+  .owner-dashboard-surface {
+    padding: var(--mf-space-3);
+  }
+
+  .owner-dashboard {
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: var(--mf-space-3);
+  }
+}
+
+/* Stack layout on narrow screens */
+@media (max-width: 950px) {
+  .owner-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-dashboard__center .dashboard-card,
+  .owner-dashboard__center .mf-card.dashboard-card {
+    min-height: 360px;
+  }
+}

@@ -1,0 +1,98 @@
+/* src/styles/components/ChartCard.css */
+
+.mf-chart-card {
+  border: 1px solid var(--mf-color-border-subtle);
+  border-radius: var(--mf-radius-lg);
+  background: var(--mf-color-bg-primary);
+  overflow: hidden;
+  box-shadow: var(--mf-shadow-sm);
+}
+
+/* Header (title left, timeframe pills right) */
+.mf-chart-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-space-3);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--mf-color-border-subtle);
+  background: var(--mf-color-bg-primary);
+}
+
+.mf-chart-card__title {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--mf-color-text-primary);
+}
+
+/* Timeframe pills */
+.mf-chart-card__timeframes {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.mf-chart-card__tf {
+  border: none;
+  background: transparent;
+  color: var(--mf-color-text-secondary);
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.mf-chart-card__tf.is-active {
+  background: var(--mf-color-accent);
+  color: #fff;
+}
+
+.mf-chart-card__tf:disabled {
+  cursor: default;
+  opacity: 1; /* keep it looking real */
+}
+
+/* Body */
+.mf-chart-card__body {
+  padding: 10px 12px 4px;
+  background: var(--mf-color-bg-primary);
+}
+
+.mf-chart-card__state {
+  padding: 18px 12px;
+  color: var(--mf-color-text-secondary);
+  font-size: 0.85rem;
+}
+
+/* Footer totals (3-up like your reference) */
+.mf-chart-card__footer {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--mf-color-border-subtle);
+  background: var(--mf-color-bg-primary);
+}
+
+.mf-chart-card__footer-item {
+  padding: 14px 12px;
+  text-align: center;
+}
+
+.mf-chart-card__footer-item + .mf-chart-card__footer-item {
+  border-left: 1px solid var(--mf-color-border-subtle);
+}
+
+.mf-chart-card__footer-label {
+  font-size: 0.78rem;
+  color: var(--mf-color-text-secondary);
+  font-weight: 700;
+}
+
+.mf-chart-card__footer-value {
+  margin-top: 2px;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--mf-color-text-primary);
+}

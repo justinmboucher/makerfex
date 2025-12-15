@@ -40,25 +40,15 @@ export function PageShell({
                 <div className="mf-page-shell__eyebrow">{eyebrow}</div>
               )}
 
-              {title && (
-                <h1 className="mf-page-shell__title">
-                  {title}
-                </h1>
-              )}
+              {title && <h1 className="mf-page-shell__title">{title}</h1>}
 
-              {subtitle && (
-                <p className="mf-page-shell__subtitle">
-                  {subtitle}
-                </p>
-              )}
+              {subtitle && <p className="mf-page-shell__subtitle">{subtitle}</p>}
             </div>
 
             {(headerAside || primaryAction || secondaryActions.length > 0) && (
               <div className="mf-page-shell__header-right">
                 {headerAside && (
-                  <div className="mf-page-shell__header-aside">
-                    {headerAside}
-                  </div>
+                  <div className="mf-page-shell__header-aside">{headerAside}</div>
                 )}
 
                 {(secondaryActions.length > 0 || primaryAction) && (
@@ -108,9 +98,7 @@ export function PageShell({
           </div>
 
           {description && (
-            <p className="mf-page-shell__description">
-              {description}
-            </p>
+            <p className="mf-page-shell__description">{description}</p>
           )}
         </header>
       )}
@@ -118,9 +106,7 @@ export function PageShell({
       {/* TOOLBAR (search, filters, etc.) */}
       {(toolbarContent || secondaryActions.length > 0) && (
         <div className="mf-page-shell__toolbar">
-          <div className="mf-page-shell__toolbar-left">
-            {toolbarContent}
-          </div>
+          <div className="mf-page-shell__toolbar-left">{toolbarContent}</div>
 
           <div className="mf-page-shell__toolbar-right">
             {secondaryActions.map((action) => {
@@ -149,21 +135,25 @@ export function PageShell({
       )}
 
       {/* BODY */}
-      <div className="mf-page-shell__body">
-        {children}
-      </div>
+      <div className="mf-page-shell__body">{children}</div>
     </div>
   );
 }
 
 /**
  * PageSection
+ *
  * Simple wrapper for content sections inside PageShell.
  * Good for tables, grids, card groups, etc.
+ *
+ * Variants:
+ * - default: card-like section wrapper (bg/border/padding)
+ * - bare: no bg/border/padding (useful when the content already provides chrome)
  */
-export function PageSection({ children, className = "" }) {
+export function PageSection({ children, className = "", variant = "default" }) {
+  const variantClass = variant === "bare" ? "mf-page-section--bare" : "";
   return (
-    <section className={`mf-page-section ${className}`}>
+    <section className={`mf-page-section ${variantClass} ${className}`.trim()}>
       {children}
     </section>
   );
