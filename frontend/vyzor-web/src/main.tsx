@@ -1,3 +1,14 @@
+// src/main.tsx
+// ============================================================================
+// App Entrypoint + Routing
+// ----------------------------------------------------------------------------
+// Purpose:
+// - Bootstraps the Vyzor UI shell (sidebar/topbar layout) and all routes.
+// - Wires Makerfex authentication + protected routes into the Vyzor shell.
+// - Ensures Makerfex pages (list + detail) render INSIDE the App layout,
+//   so they inherit sidebar/topbar and consistent navigation.
+// ============================================================================
+
 import { Fragment, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.scss';
@@ -10,7 +21,6 @@ const MFLogin = lazy(() => import("./pages/makerfex/Login.tsx"));
 const MFProof = lazy(() => import("./pages/makerfex/MFProof.tsx"));
 const MFProjectDetail = lazy(() => import("./pages/makerfex/ProjectDetail.tsx"));
 const MFCustomerDetail = lazy(() => import("./pages/makerfex/CustomerDetail.tsx"));
-
 
 const App = lazy(() => import('./pages/App.tsx'));
 const Landing = lazy(() => import('./components/pages/landing/landing.tsx'));
@@ -40,10 +50,10 @@ import { store } from './shared/redux/store.tsx';
 import { RouteData } from './shared/data/routingdata.tsx';
 const Firebaselayout = lazy(() => import('./pages/Firebaselayout.tsx'));
 const Signin = lazy(() => import('./firebase/login.tsx'));
+
 const MFDashboard = lazy(() => import("./pages/makerfex/Dashboard.tsx"));
 const MFProjects = lazy(() => import("./pages/makerfex/Projects.tsx"));
 const MFCustomers = lazy(() => import("./pages/makerfex/Customers.tsx"));
-
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <Fragment>
@@ -76,6 +86,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     </ProtectedRoute>
                   }
                 />
+
                 <Route
                   path="projects"
                   element={
@@ -84,6 +95,17 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     </ProtectedRoute>
                   }
                 />
+
+                {/* ✅ FIX: project detail must be inside the App shell */}
+                <Route
+                  path="projects/:id"
+                  element={
+                    <ProtectedRoute>
+                      <MFProjectDetail />
+                    </ProtectedRoute>
+                  }
+                />
+
                 <Route
                   path="customers"
                   element={
@@ -113,19 +135,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 />
               </Route>
 
-              <Route
-                path="projects/:id"
-                element={
-                  <ProtectedRoute>
-                    <MFProjectDetail />
-                  </ProtectedRoute>
-                }
-              />
-
+              {/* Landing pages */}
               <Route path={`${import.meta.env.BASE_URL}`} element={<Landinglayout />}>
                 <Route path={`${import.meta.env.BASE_URL}pages/landing`} element={<Landing />} />
               </Route>
 
+              {/* Template authentication pages */}
               <Route path={`${import.meta.env.BASE_URL}`} element={<AuthenticationLayout />}>
                 <Route path="*" element={<Error500 />} />
                 <Route path={`${import.meta.env.BASE_URL}pages/authentication/coming-soon`} element={<ComingSoon />} />
@@ -147,11 +162,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path={`${import.meta.env.BASE_URL}pages/authentication/error/500-error`} element={<Error500 />} />
               </Route>
             </Routes>
-
           </BrowserRouter>
         </AuthProvider>
       </RootWrapper>
     </Provider>
   </Fragment>
 );
-
