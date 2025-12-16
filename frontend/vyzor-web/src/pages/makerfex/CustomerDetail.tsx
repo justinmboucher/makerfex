@@ -5,14 +5,18 @@
 // Purpose:
 // - Render a useful customer summary (not raw JSON) inside the Vyzor shell.
 // - Keep styling minimal (React-Bootstrap only).
-// - No row-click tricks; navigation handled elsewhere.
+// - Add relational content: read-only list of this customer's projects.
+// - No row-click tricks; navigation handled via links.
 // ============================================================================
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { Badge, Button, Card, Col, Row, Spinner } from "react-bootstrap";
+import { Link, useParams } from "react-router-dom";
+import { Badge, Button, Card, Col, Row, Spinner, Table } from "react-bootstrap";
+
 import { getCustomer } from "../../api/customers";
 import type { Customer } from "../../api/customers";
+
+import { listProjects, type Project } from "../../api/projects";
 
 function formatAddress(c: Customer) {
   const line1 = (c as any).address_line1 as string | null | undefined;
@@ -42,6 +46,11 @@ export default function CustomerDetail() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsErr, setProjectsErr] = useState<string | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
+  // Load customer
   useEffect(() => {
     let alive = true;
 
@@ -67,6 +76,35 @@ export default function CustomerDetail() {
     };
   }, [customerId]);
 
+  // Load projects for this customer (read-only)
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      if (!Number.isFinite(customerId)) return;
+
+      setProjectsLoading(true);
+      setProjectsErr(null);
+
+      try {
+        // Backend filter: /projects/?customer=<id>
+        const { items } = await listProjects({ customer: customerId });
+        if (!alive) return;
+        setProjects(items);
+      } catch (e: any) {
+        if (!alive) return;
+        setProjectsErr(e?.response?.data?.detail || e?.message || "Failed to load projects");
+      } finally {
+        if (!alive) return;
+        setProjectsLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [customerId]);
+
   const title = useMemo(() => {
     if (!data) return `Customer #${id}`;
     const company = (data as any).company_name as string | null | undefined;
@@ -74,67 +112,110 @@ export default function CustomerDetail() {
   }, [data, id]);
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <h3 style={{ margin: 0 }}>{title}</h3>
-        <Button variant="outline-secondary" size="sm" onClick={() => history.back()}>
-          Back
-        </Button>
-      </div>
+    <>
+      <h3 className="mb-3">{title}</h3>
+
+      <Button variant="link" className="p-0 mb-3" onClick={() => history.back()}>
+        &larr; Back
+      </Button>
 
       {loading && (
-        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="d-flex align-items-center gap-2">
           <Spinner animation="border" size="sm" />
           <span>Loading…</span>
         </div>
       )}
 
-      {err && <div style={{ marginTop: 16, color: "crimson" }}>{err}</div>}
+      {err && <div className="text-danger">{err}</div>}
 
       {!loading && !err && data && (
-        <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-          <Card>
-            <Card.Body>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 20, fontWeight: 700 }}>{data.name || "Customer"}</div>
-                  {(data as any).company_name ? (
-                    <div style={{ opacity: 0.75 }}>{(data as any).company_name}</div>
+        <Row className="g-3">
+          <Col lg={6}>
+            <Card>
+              <Card.Body>
+                <div className="d-flex align-items-start justify-content-between gap-3">
+                  <div>
+                    <h4 className="mb-1">{data.name || "Customer"}</h4>
+                    {(data as any).company_name ? (
+                      <div className="text-muted">{(data as any).company_name}</div>
+                    ) : null}
+                  </div>
+
+                  <Badge bg={data.is_vip ? "warning" : "secondary"}>
+                    {data.is_vip ? "VIP" : "Standard"}
+                  </Badge>
+                </div>
+
+                <Row className="mt-3 g-2">
+                  <Col sm={6}>
+                    <div className="text-muted">Email</div>
+                    <div>{data.email || "—"}</div>
+                  </Col>
+                  <Col sm={6}>
+                    <div className="text-muted">Phone</div>
+                    <div>{data.phone || "—"}</div>
+                  </Col>
+                  <Col sm={12}>
+                    <div className="text-muted">Address</div>
+                    <div>{formatAddress(data)}</div>
+                  </Col>
+                  <Col sm={12}>
+                    <div className="text-muted">Notes</div>
+                    <div>{(data as any).notes || "—"}</div>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+          </Col>
+
+          <Col lg={6}>
+            <Card>
+              <Card.Body>
+                <div className="d-flex align-items-center justify-content-between gap-3">
+                  <h5 className="mb-0">Projects</h5>
+                  {projectsLoading ? (
+                    <div className="d-flex align-items-center gap-2">
+                      <Spinner animation="border" size="sm" />
+                      <span className="text-muted">Loading…</span>
+                    </div>
                   ) : null}
                 </div>
-                <div>
-                  {data.is_vip ? <Badge bg="warning">VIP</Badge> : <Badge bg="secondary">Standard</Badge>}
-                </div>
-              </div>
-            </Card.Body>
-          </Card>
 
-          <Card>
-            <Card.Body>
-              <Row className="g-3">
-                <Col md={6}>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>Email</div>
-                  <div>{data.email || "—"}</div>
-                </Col>
-                <Col md={6}>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>Phone</div>
-                  <div>{data.phone || "—"}</div>
-                </Col>
-
-                <Col md={12}>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>Address</div>
-                  <div>{formatAddress(data)}</div>
-                </Col>
-
-                <Col md={12}>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>Notes</div>
-                  <div>{(data as any).notes || "—"}</div>
-                </Col>
-              </Row>
-            </Card.Body>
-          </Card>
-        </div>
+                {projectsErr ? (
+                  <div className="text-danger mt-3">{projectsErr}</div>
+                ) : !projectsLoading && projects.length === 0 ? (
+                  <div className="text-muted mt-3">No projects for this customer.</div>
+                ) : (
+                  <div className="mt-3">
+                    <Table striped bordered hover responsive size="sm" className="mb-0">
+                      <thead>
+                        <tr>
+                          <th>Project</th>
+                          <th>Status</th>
+                          <th>Assigned To</th>
+                          <th>Due</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projects.map((p) => (
+                          <tr key={p.id}>
+                            <td>
+                              <Link to={`/projects/${p.id}`}>{p.name}</Link>
+                            </td>
+                            <td>{p.status ?? "—"}</td>
+                            <td>{p.assigned_to_name ?? "—"}</td>
+                            <td>{p.due_date ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
       )}
-    </div>
+    </>
   );
 }

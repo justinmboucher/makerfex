@@ -1,10 +1,10 @@
+# backend/projects/views.py
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
 from projects.models import Project
 from projects.serializers import ProjectSerializer
-from accounts.models import Employee
-
+from accounts.utils import get_shop_for_user  # ✅ use the shared helper
 
 class ProjectViewSet(viewsets.ModelViewSet):
     """
@@ -22,26 +22,27 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 
     def get_shop(self):
-        user = self.request.user
-        if not user or not user.is_authenticated:
-            return None
-
-        # User -> Employee -> Shop (your canonical relationship)
-        try:
-            return Employee.objects.get(user=user, is_active=True).shop
-        except Employee.DoesNotExist:
-            return None
+        return get_shop_for_user(self.request.user)
 
     def get_queryset(self):
         shop = self.get_shop()
         if not shop:
             return Project.objects.none()
 
-        return (
+        qs = (
             Project.objects
             .filter(shop=shop, is_archived=False)
             .order_by("-created_at")
         )
+
+        customer_id = (
+            self.request.query_params.get("customer")
+            or self.request.query_params.get("customer_id")
+        )
+        if customer_id:
+            qs = qs.filter(customer_id=customer_id)
+
+        return qs
 
     def perform_create(self, serializer):
         shop = self.get_shop()
