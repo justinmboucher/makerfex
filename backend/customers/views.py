@@ -1,4 +1,5 @@
 # backend/customers/views.py
+
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
@@ -15,7 +16,6 @@ class CustomerViewSet(viewsets.ModelViewSet):
     - Users may only see customers belonging to their shop
     - New customers are automatically assigned to the user's shop
     """
-
     permission_classes = [IsAuthenticated]
     serializer_class = CustomerSerializer
     queryset = Customer.objects.none()  # overridden by get_queryset
