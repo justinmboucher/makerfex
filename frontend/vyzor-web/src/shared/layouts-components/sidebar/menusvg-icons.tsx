@@ -1,4 +1,14 @@
-
+// src/shared/layouts-components/sidebar/menusvg-icons.tsx
+// ============================================================================
+// Sidebar SVG Icon Library
+// ----------------------------------------------------------------------------
+// Purpose:
+// - Exports reusable SVG icon React components used by MENUITEMS.
+//
+// Important:
+// - Optional for Makerfex: you can use simple <i className="..."> icons too,
+//   but keeping icons centralized here is cleaner long-term.
+// ============================================================================
 
 ///*** Dashboard - Icons ***///
 

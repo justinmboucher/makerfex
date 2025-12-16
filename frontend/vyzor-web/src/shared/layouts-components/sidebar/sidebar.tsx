@@ -1,3 +1,17 @@
+// src/shared/layouts-components/sidebar/sidebar.tsx
+// ============================================================================
+// Sidebar Controller (Menu State + Interactions)
+// ----------------------------------------------------------------------------
+// Purpose:
+// - Owns sidebar behavior: responsive open/close, hover states, horizontal menu
+//   scrolling, active menu state, and submenu expansion logic.
+// - Renders MENUITEMS using <Menuloop />.
+//
+// Important:
+// - MENUITEMS is imported from nav.tsx (treat nav.tsx as the single source of truth
+//   for navigation structure).
+// - Prefer adding Makerfex items in nav.tsx rather than hardcoding links here.
+// ============================================================================
 
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { MENUITEMS } from './nav'

@@ -1,4 +1,15 @@
-
+// src/shared/layouts-components/sidebar/menuloop.tsx
+// ============================================================================
+// Sidebar Menu Renderer (Recursive)
+// ----------------------------------------------------------------------------
+// Purpose:
+// - Recursively renders MENUITEMS and nested children.
+// - Expects MenuItems.icon to be a ReactNode (JSX).
+//
+// Important:
+// - This file should stay generic. Do NOT inject Makerfex-specific logic here.
+// - If you need to change menu styling, do it through theme utilities or a small override.
+// ============================================================================
 
 import { Fragment, useEffect, useState } from 'react';
 import { data$, getState } from '../services/switcherServices';

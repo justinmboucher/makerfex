@@ -1,7 +1,7 @@
 import { Fragment, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.scss';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 
 import AuthProvider from "./context/AuthProvider.tsx";
 import ProtectedRoute from "./routes/ProtectedRoute.tsx";
@@ -37,6 +37,9 @@ import { store } from './shared/redux/store.tsx';
 import { RouteData } from './shared/data/routingdata.tsx';
 const Firebaselayout = lazy(() => import('./pages/Firebaselayout.tsx'));
 const Signin = lazy(() => import('./firebase/login.tsx'));
+const MFDashboard = lazy(() => import("./pages/makerfex/Dashboard.tsx"));
+const MFProjects = lazy(() => import("./pages/makerfex/Projects.tsx"));
+const MFCustomers = lazy(() => import("./pages/makerfex/Customers.tsx"));
 
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -52,10 +55,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
               <Route path={`${import.meta.env.BASE_URL}`} element={<Firebaselayout />}>
                 <Route index element={<Signin />} />
-                <Route
-                  path={`${import.meta.env.BASE_URL}common/firebase/signin`}
-                  element={<Signin />}
-                />
+                <Route path={`${import.meta.env.BASE_URL}common/firebase/signin`} element={<Signin />} />
               </Route>
 
               {/* Main Vyzor shell */}
@@ -64,7 +64,33 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                   <Route key={idx.id} path={idx.path} element={idx.element} />
                 ))}
 
-                {/* Makerfex protected proof page INSIDE the Vyzor shell */}
+                {/* Makerfex routes INSIDE the Vyzor shell */}
+                <Route
+                  path="dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <MFDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="projects"
+                  element={
+                    <ProtectedRoute>
+                      <MFProjects />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="customers"
+                  element={
+                    <ProtectedRoute>
+                      <MFCustomers />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Keep proof route for now */}
                 <Route
                   path="mf-proof"
                   element={
@@ -76,10 +102,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               </Route>
 
               <Route path={`${import.meta.env.BASE_URL}`} element={<Landinglayout />}>
-                <Route
-                  path={`${import.meta.env.BASE_URL}pages/landing`}
-                  element={<Landing />}
-                />
+                <Route path={`${import.meta.env.BASE_URL}pages/landing`} element={<Landing />} />
               </Route>
 
               <Route path={`${import.meta.env.BASE_URL}`} element={<AuthenticationLayout />}>
@@ -103,6 +126,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path={`${import.meta.env.BASE_URL}pages/authentication/error/500-error`} element={<Error500 />} />
               </Route>
             </Routes>
+
           </BrowserRouter>
         </AuthProvider>
       </RootWrapper>

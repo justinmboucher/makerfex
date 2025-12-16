@@ -1,3 +1,16 @@
+// src/pages/App.tsx
+// ============================================================================
+// Vyzor App Shell (Main Layout)
+// ----------------------------------------------------------------------------
+// Purpose:
+// - Provides the primary authenticated application layout shell (Sidebar, Header,
+//   Footer, Switcher, Back-to-top) and renders routed page content via <Outlet/>.
+//
+// Important:
+// - All Makerfex protected routes should be nested under the route that renders
+//   <App /> so they inherit the Vyzor layout chrome.
+// - Keep this file “theme-ish”: avoid Makerfex data fetching and business logic here.
+// ============================================================================
 
 import { Fragment } from "react/jsx-runtime"
 import { Outlet } from "react-router-dom"
