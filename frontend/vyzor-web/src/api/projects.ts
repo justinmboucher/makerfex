@@ -17,6 +17,7 @@ export type Project = {
   id: number;
   shop: number;
   customer: number | null;
+  customer_name: string | null;
   photo_url: string | null;
   name: string;
   reference_code: string;

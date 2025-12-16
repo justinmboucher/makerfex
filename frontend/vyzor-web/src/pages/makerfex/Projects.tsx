@@ -143,7 +143,7 @@ export default function Projects() {
                     <Badge bg={priorityVariant(p.priority)}>{p.priority}</Badge>
                   </td>
                   <td>{formatDate(p.due_date)}</td>
-                  <td>{p.customer ?? "—"}</td>
+                  <td>{p.customer_name ?? "—"}</td>
                   <td style={{ textAlign: "right" }}>
                     <Button
                       size="sm"
