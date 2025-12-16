@@ -4,10 +4,12 @@
 // ----------------------------------------------------------------------------
 // Displays customers scoped to the logged-in user's shop.
 // Uses Vyzor table layout and DRF pagination.
+// Only the customer name is a navigable link.
 // ============================================================================
 
 import { useEffect, useState } from "react";
 import { Table, Spinner, Badge } from "react-bootstrap";
+import { Link } from "react-router-dom";
 import { listCustomers } from "../../api/customers";
 import type { Customer } from "../../api/customers";
 
@@ -36,7 +38,7 @@ export default function Customers() {
       <Table hover responsive>
         <thead>
           <tr>
-            <th>Name</th>
+            <th style={{ width: 200 }}>Name</th>
             <th>Email</th>
             <th>Phone</th>
             <th>VIP</th>
@@ -53,7 +55,14 @@ export default function Customers() {
 
           {customers.map((c) => (
             <tr key={c.id}>
-              <td>{c.name}</td>
+              <td>
+                <Link
+                  to={`/customers/${c.id}`}
+                  style={{ fontWeight: 600, textDecoration: "none" }}
+                >
+                  {c.name || "—"}
+                </Link>
+              </td>
               <td>{c.email || "—"}</td>
               <td>{c.phone || "—"}</td>
               <td>
