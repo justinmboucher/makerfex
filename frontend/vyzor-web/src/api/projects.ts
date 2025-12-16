@@ -36,6 +36,8 @@ export type Project = {
   is_archived: boolean;
   created_at: string;
   updated_at: string;
+  assigned_to_name: string | null;
+  created_by_name: string | null;
 };
 
 type DRFPaginated<T> = {

@@ -115,6 +115,7 @@ export default function Projects() {
                 <th>Priority</th>
                 <th>Due</th>
                 <th>Customer</th>
+                <th>Assigned</th>
                 <th style={{ width: 120 }}></th>
               </tr>
             </thead>
@@ -144,6 +145,7 @@ export default function Projects() {
                   </td>
                   <td>{formatDate(p.due_date)}</td>
                   <td>{p.customer_name ?? "—"}</td>
+                  <td>{p.assigned_to_name || "—"}</td>
                   <td style={{ textAlign: "right" }}>
                     <Button
                       size="sm"
