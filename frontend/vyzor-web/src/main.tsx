@@ -1,13 +1,14 @@
 import { Fragment, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.scss';
-import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import AuthProvider from "./context/AuthProvider.tsx";
 import ProtectedRoute from "./routes/ProtectedRoute.tsx";
 
 const MFLogin = lazy(() => import("./pages/makerfex/Login.tsx"));
 const MFProof = lazy(() => import("./pages/makerfex/MFProof.tsx"));
+const MFProjectDetail = lazy(() => import("./pages/makerfex/ProjectDetail.tsx"));
 
 const App = lazy(() => import('./pages/App.tsx'));
 const Landing = lazy(() => import('./components/pages/landing/landing.tsx'));
@@ -100,6 +101,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                   }
                 />
               </Route>
+
+              <Route
+                path="projects/:id"
+                element={
+                  <ProtectedRoute>
+                    <MFProjectDetail />
+                  </ProtectedRoute>
+                }
+              />
 
               <Route path={`${import.meta.env.BASE_URL}`} element={<Landinglayout />}>
                 <Route path={`${import.meta.env.BASE_URL}pages/landing`} element={<Landing />} />

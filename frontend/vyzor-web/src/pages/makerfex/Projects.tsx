@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Table, Spinner, Badge, Button } from "react-bootstrap";
 import { listProjects } from "../../api/projects";
 import type { Project } from "../../api/projects";
+import { useNavigate } from "react-router-dom";
 
 function formatDate(d: string | null) {
   if (!d) return "—";
@@ -55,6 +56,7 @@ export default function Projects() {
   const [items, setItems] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let alive = true;
@@ -146,7 +148,7 @@ export default function Projects() {
                     <Button
                       size="sm"
                       variant="outline-primary"
-                      onClick={() => console.log("Project clicked:", p.id)}
+                      onClick={() => navigate(`/projects/${p.id}`)}
                     >
                       View
                     </Button>
