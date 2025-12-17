@@ -110,13 +110,20 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 class StationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = StationSerializer
-    queryset = Station.objects.none()  # overridden by get_queryset
+    queryset = Station.objects.none()
 
     def get_queryset(self):
         shop = get_shop_for_user(self.request.user)
         if not shop:
             return Station.objects.none()
-        return Station.objects.filter(shop=shop).order_by("name", "id")
+
+        return (
+            Station.objects
+            .filter(shop=shop)
+            .prefetch_related("employees")          # ✅ for employees_detail
+            .annotate(employee_count=Count("employees", distinct=True))  # ✅ for list
+            .order_by("name", "id")
+        )
 
 
 class CurrentUserView(APIView):

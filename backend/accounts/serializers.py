@@ -65,18 +65,33 @@ class EmployeeSerializer(serializers.ModelSerializer):
     return None
 
 
+class EmployeeMiniSerializer(serializers.ModelSerializer):
+    display_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Employee
+        fields = ["id", "first_name", "last_name", "role", "is_active", "display_name"]
+
+    def get_display_name(self, obj):
+        return f"{obj.first_name} {obj.last_name or ''}".strip()
+
 class StationSerializer(serializers.ModelSerializer):
-  class Meta:
-    model = Station
-    fields = [
-      "id",
-      "shop",
-      "name",
-      "code",
-      "description",
-      "is_active",
-      "employees",
-      "created_at",
-      "updated_at",
-    ]
-    read_only_fields = ["id", "created_at", "updated_at"]
+    employee_count = serializers.IntegerField(read_only=True)
+    employees_detail = EmployeeMiniSerializer(source="employees", many=True, read_only=True)
+
+    class Meta:
+        model = Station
+        fields = [
+            "id",
+            "shop",
+            "name",
+            "code",
+            "description",
+            "is_active",
+            "employee_count",     # ✅ list-friendly
+            "employees",          # keep ids too (low-risk/backwards compatible)
+            "employees_detail",   # ✅ detail-friendly expansion
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "employee_count", "employees_detail"]
