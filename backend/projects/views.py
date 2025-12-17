@@ -32,7 +32,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         qs = (
             Project.objects
             .filter(shop=shop, is_archived=False)
-            .select_related("customer", "assigned_to") 
+            .select_related("customer", "assigned_to")  # ✅ perf for list tables :contentReference[oaicite:2]{index=2}
             .order_by("-created_at")
         )
 
@@ -49,6 +49,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
         )
         if assigned_to_id:
             qs = qs.filter(assigned_to_id=assigned_to_id)
+
+        station_id = (
+            self.request.query_params.get("station")
+            or self.request.query_params.get("station_id")
+        )
+        if station_id:
+            # Projects assigned to employees who are members of this station
+            qs = qs.filter(assigned_to__stations__id=station_id).distinct()
 
         return qs
 
