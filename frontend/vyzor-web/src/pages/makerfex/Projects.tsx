@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Table, Spinner, Badge, Button } from "react-bootstrap";
 import { listProjects } from "../../api/projects";
 import type { Project } from "../../api/projects";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 function formatDate(d: string | null) {
   if (!d) return "—";
@@ -144,8 +144,24 @@ export default function Projects() {
                     <Badge bg={priorityVariant(p.priority)}>{p.priority}</Badge>
                   </td>
                   <td>{formatDate(p.due_date)}</td>
-                  <td>{p.customer_name ?? "—"}</td>
-                  <td>{p.assigned_to_name || "—"}</td>
+                  <td>
+                    {p.customer ? (
+                      <Link to={`/customers/${p.customer}`}>
+                        {p.customer_name ?? `Customer #${p.customer}`}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    {p.assigned_to ? (
+                      <Link to={`/employees/${p.assigned_to}`}>
+                        {p.assigned_to_name ?? `Employee #${p.assigned_to}`}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td style={{ textAlign: "right" }}>
                     <Button
                       size="sm"

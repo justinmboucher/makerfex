@@ -28,11 +28,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
         shop = self.get_shop()
         if not shop:
             return Project.objects.none()
-        
 
         qs = (
             Project.objects
             .filter(shop=shop, is_archived=False)
+            .select_related("customer", "assigned_to") 
             .order_by("-created_at")
         )
 
