@@ -562,6 +562,15 @@ export const MENUITEMS: any = [
     selected: false,
   },
 
+  {
+    title: "Employees",
+    icon: <i className="ri-team-line side-menu__icon"></i>,
+    type: "link",
+    path: "/employees",
+    active: false,
+    selected: false,
+  },
+
   // Optional dev tool (you can remove later)
   {
     title: "API Proof",

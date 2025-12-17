@@ -28,6 +28,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         shop = self.get_shop()
         if not shop:
             return Project.objects.none()
+        
 
         qs = (
             Project.objects
@@ -41,6 +42,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
         )
         if customer_id:
             qs = qs.filter(customer_id=customer_id)
+
+        assigned_to_id = (
+            self.request.query_params.get("assigned_to")
+            or self.request.query_params.get("assigned_to_id")
+        )
+        if assigned_to_id:
+            qs = qs.filter(assigned_to_id=assigned_to_id)
 
         return qs
 

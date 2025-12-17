@@ -17,7 +17,7 @@ export default function Employees() {
       setLoading(true);
       setErr(null);
       try {
-        const { items } = await listEmployees();
+        const { items } = await listEmployees({ with_counts: 1 });
         if (!alive) return;
         setItems(items);
       } catch (e: any) {
@@ -56,6 +56,8 @@ export default function Employees() {
                   <th>Name</th>
                   <th>Role</th>
                   <th>Email</th>
+                  <th>Workload</th>
+                  <th>Overdue</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -69,6 +71,16 @@ export default function Employees() {
                       </td>
                       <td>{e.role || "—"}</td>
                       <td>{e.email || "—"}</td>
+                      <td>
+                        <Link to={`/employees/${e.id}`}>
+                          {(e as any).assigned_project_count ?? 0}
+                        </Link>
+                      </td>
+                      <td>
+                        <Link to={`/employees/${e.id}`}>
+                          {(e as any).overdue_project_count ?? 0}
+                        </Link>
+                      </td>
                       <td>{e.is_active ? "Active" : "Inactive"}</td>
                     </tr>
                   );
