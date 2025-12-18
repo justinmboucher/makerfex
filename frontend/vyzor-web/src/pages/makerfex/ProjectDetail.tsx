@@ -107,11 +107,11 @@ export default function ProjectDetail() {
 
   const customerId = (data as any)?.customer as number | null | undefined;
   const customerName = (data as any)?.customer_name as string | null | undefined;
+
   const canLogSale = Boolean((data as any)?.can_log_sale);
-  const stageName =
-    (data as any)?.current_stage_name ||
-    (data as any)?.current_stage ||
-    "—";
+  const stageName = (data as any)?.current_stage_name || "—";
+  const stationName = (data as any)?.station_name || "—";
+  const isCompleted = Boolean((data as any)?.is_completed);
 
   return (
     <>
@@ -144,6 +144,10 @@ export default function ProjectDetail() {
                   </div>
 
                   <div className="d-flex gap-2 align-items-center flex-wrap">
+                    {/* Stage is primary truth */}
+                    <Badge bg={isCompleted ? "success" : "primary"}>{stageName}</Badge>
+
+                    {/* Status is secondary / legacy */}
                     <Badge bg="secondary">{data.status}</Badge>
 
                     {(data as any).priority ? (
@@ -154,13 +158,17 @@ export default function ProjectDetail() {
                       size="sm"
                       variant={canLogSale ? "success" : "outline-secondary"}
                       disabled={!canLogSale}
+                      className="px-2"
                       aria-label="Log sale"
                       title={
                         canLogSale
                           ? "Log sale"
                           : `Sale logging is disabled at this stage (${stageName}).`
                       }
-                      onClick={() => alert("Log Sale is not implemented yet. (Gate is working ✅)")}
+                      onClick={() => {
+                        // Soft action only: wiring point for Sales later
+                        alert("Log Sale is not implemented yet. (Gate is working ✅)");
+                      }}
                     >
                       <i className="bi bi-currency-dollar" />
                     </Button>
@@ -171,6 +179,11 @@ export default function ProjectDetail() {
                   <Col sm={6}>
                     <div className="text-muted">Due</div>
                     <div>{formatDate((data as any).due_date)}</div>
+                  </Col>
+
+                  <Col sm={6}>
+                    <div className="text-muted">Station</div>
+                    <div>{stationName}</div>
                   </Col>
 
                   <Col sm={6}>
@@ -186,7 +199,7 @@ export default function ProjectDetail() {
                     </div>
                   </Col>
 
-                  <Col sm={12}>
+                  <Col sm={6}>
                     <div className="text-muted">Customer</div>
                     <div>
                       {customerId ? (
@@ -232,6 +245,7 @@ export default function ProjectDetail() {
                       <thead>
                         <tr>
                           <th>Project</th>
+                          <th>Stage</th>
                           <th>Status</th>
                           <th>Assigned To</th>
                           <th>Due</th>
@@ -243,14 +257,16 @@ export default function ProjectDetail() {
                             <td>
                               <Link to={`/projects/${p.id}`}>{p.name}</Link>
                             </td>
+                            <td>{(p as any).current_stage_name ?? "—"}</td>
                             <td>{p.status ?? "—"}</td>
-                            <td>{(p as any).assigned_to ? (
-                              <Link to={`/employees/${(p as any).assigned_to}`}>
-                                {(p as any).assigned_to_name || "Employee"}
-                              </Link>
-                            ) : (
-                              "—"
-                            )}
+                            <td>
+                              {(p as any).assigned_to ? (
+                                <Link to={`/employees/${(p as any).assigned_to}`}>
+                                  {(p as any).assigned_to_name || "Employee"}
+                                </Link>
+                              ) : (
+                                "—"
+                              )}
                             </td>
                             <td>{formatDate((p as any).due_date)}</td>
                           </tr>

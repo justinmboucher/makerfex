@@ -1,6 +1,6 @@
 # backend/projects/serializers.py
-from rest_framework import serializers
 
+from rest_framework import serializers
 from .models import Project
 
 
@@ -9,10 +9,14 @@ class ProjectSerializer(serializers.ModelSerializer):
     photo_url = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     assigned_to_name = serializers.SerializerMethodField()
+
     station_name = serializers.SerializerMethodField()
     workflow_name = serializers.SerializerMethodField()
     current_stage_name = serializers.SerializerMethodField()
     can_log_sale = serializers.SerializerMethodField()
+
+    # comes from queryset annotation in ProjectViewSet
+    is_completed = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Project
@@ -42,6 +46,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "workflow_name",
             "current_stage_name",
             "can_log_sale",
+            "is_completed",
             "estimated_hours",
             "actual_hours",
             "is_archived",
@@ -60,20 +65,19 @@ class ProjectSerializer(serializers.ModelSerializer):
             "workflow_name",
             "current_stage_name",
             "can_log_sale",
+            "is_completed",
         ]
 
     def _employee_display_name(self, emp):
         if not emp:
             return None
 
-        # Try common Employee fields first
         first = getattr(emp, "first_name", None) or ""
         last = getattr(emp, "last_name", None) or ""
         full = f"{first} {last}".strip()
         if full:
             return full
 
-        # Fall back to linked user if present
         user = getattr(emp, "user", None)
         if user:
             if hasattr(user, "get_full_name"):
@@ -114,7 +118,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_current_stage_name(self, obj):
         return getattr(obj.current_stage, "name", None) if getattr(obj, "current_stage", None) else None
-    
+
     def get_can_log_sale(self, obj):
         st = getattr(obj, "current_stage", None)
         return bool(getattr(st, "allows_sale_log", False)) if st else False

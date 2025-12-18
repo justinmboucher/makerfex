@@ -1,5 +1,6 @@
 # backend/projects/views.py
-from django.db.models import Q
+
+from django.db.models import Q, BooleanField, Case, Value, When
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
@@ -31,6 +32,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
             Project.objects
             .filter(shop=shop, is_archived=False)
             .select_related("customer", "assigned_to", "workflow", "current_stage", "station")
+            .annotate(
+                # Stage-truth completion: completed means current_stage.is_final
+                is_completed=Case(
+                    When(current_stage__is_final=True, then=Value(True)),
+                    default=Value(False),
+                    output_field=BooleanField(),
+                )
+            )
             .order_by("-created_at")
         )
 
@@ -42,12 +51,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if assigned_to_id:
             qs = qs.filter(assigned_to_id=assigned_to_id)
 
-        # New: stage filter
+        # Stage filter
         stage_id = self.request.query_params.get("current_stage") or self.request.query_params.get("stage")
         if stage_id:
             qs = qs.filter(current_stage_id=stage_id)
 
-        # New canonical meaning: ?station=<id> means Project.station_id
+        # Station filter (canonical meaning: Project.station_id)
         station_id = self.request.query_params.get("station") or self.request.query_params.get("station_id")
         if station_id:
             # Transitional compatibility:
@@ -56,12 +65,20 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 Q(station_id=station_id) | Q(assigned_to__stations__id=station_id)
             ).distinct()
 
+        # Completion filter: ?is_completed=true/false
+        is_completed = self.request.query_params.get("is_completed")
+        if is_completed is not None:
+            v = str(is_completed).strip().lower()
+            if v in ("1", "true", "yes"):
+                qs = qs.filter(current_stage__is_final=True)
+            elif v in ("0", "false", "no"):
+                qs = qs.exclude(current_stage__is_final=True)
+
         return qs
 
     def perform_create(self, serializer):
         shop = self.get_shop()
         if not shop:
             raise ValueError("Current user has no shop configured.")
-
         emp = self.get_employee(shop)
         serializer.save(shop=shop, created_by=emp)

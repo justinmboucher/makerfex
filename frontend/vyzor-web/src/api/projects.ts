@@ -5,10 +5,9 @@
 // Purpose:
 // - Single source of truth for calling the Projects backend endpoints.
 // - Handles DRF list responses whether paginated ({results,...}) or plain arrays.
-//
+// ----------------------------------------------------------------------------
 // Important:
-// - Backend currently returns FK fields (shop/customer/workflow/current_stage/etc)
-//   as IDs (not nested objects). :contentReference[oaicite:3]{index=3}
+// - Backend returns FK fields (shop/customer/workflow/current_stage/etc) as IDs.
 // ============================================================================
 
 import axiosClient from "./axiosClient";
@@ -16,28 +15,50 @@ import axiosClient from "./axiosClient";
 export type Project = {
   id: number;
   shop: number;
+
   customer: number | null;
   customer_name: string | null;
+
   photo_url: string | null;
+
   name: string;
   reference_code: string;
   description: string;
+
   workflow: number | null;
+  workflow_name?: string | null;
+
   current_stage: number | null;
+  current_stage_name?: string | null;
+
+  station?: number | null;
+  station_name?: string | null;
+
   priority: "low" | "normal" | "high" | "rush";
   status: "active" | "on_hold" | "completed" | "cancelled";
+
+  // stage-truth completion (backend annotation)
+  is_completed?: boolean;
+
+  // sale gate (backend derived)
+  can_log_sale?: boolean;
+
   start_date: string | null;
   due_date: string | null;
   completed_at: string | null;
+
   created_by: number | null;
+  created_by_name: string | null;
+
   assigned_to: number | null;
+  assigned_to_name: string | null;
+
   estimated_hours: string | null;
   actual_hours: string | null;
+
   is_archived: boolean;
   created_at: string;
   updated_at: string;
-  assigned_to_name: string | null;
-  created_by_name: string | null;
 };
 
 type DRFPaginated<T> = {
@@ -58,7 +79,7 @@ export async function listProjects(params?: Record<string, any>) {
   return unwrapList<Project>(res.data);
 }
 
-export async function getProject(id: number) {
+export async function getProject(id: number): Promise<Project> {
   const res = await axiosClient.get<Project>(`/projects/${id}/`);
   return res.data;
 }
