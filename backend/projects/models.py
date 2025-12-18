@@ -1,7 +1,7 @@
 # backend/projects/models.py
 from django.db import models
 
-from accounts.models import TimeStampedModel, Shop, Employee
+from accounts.models import TimeStampedModel, Shop, Employee, Station
 from customers.models import Customer
 from workflows.models import Workflow, WorkflowStage
 
@@ -115,6 +115,14 @@ class Project(TimeStampedModel):
     null=True,
     blank=True,
     help_text="Aggregated tracked hours (to be populated later by time tracking).",
+  )
+
+  station = models.ForeignKey(
+    Station,
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name="projects",
   )
 
   is_archived = models.BooleanField(default=False)

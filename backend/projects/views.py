@@ -1,28 +1,26 @@
 # backend/projects/views.py
+from django.db.models import Q
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
+from accounts.models import Employee
+from accounts.utils import get_shop_for_user
 from projects.models import Project
 from projects.serializers import ProjectSerializer
-from accounts.utils import get_shop_for_user  # ✅ use the shared helper
+
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    """
-    Project API scoped to the current user's shop.
-
-    Rules:
-    - Users may only see projects belonging to their shop
-    - New projects are automatically assigned to the user's shop
-    - Archived projects are hidden by default
-    """
-
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSerializer
-    queryset = Project.objects.none()  # overridden by get_queryset
-
+    queryset = Project.objects.none()
 
     def get_shop(self):
         return get_shop_for_user(self.request.user)
+
+    def get_employee(self, shop):
+        if not shop:
+            return None
+        return Employee.objects.filter(shop=shop, user=self.request.user).first()
 
     def get_queryset(self):
         shop = self.get_shop()
@@ -32,31 +30,31 @@ class ProjectViewSet(viewsets.ModelViewSet):
         qs = (
             Project.objects
             .filter(shop=shop, is_archived=False)
-            .select_related("customer", "assigned_to")  # ✅ perf for list tables :contentReference[oaicite:2]{index=2}
+            .select_related("customer", "assigned_to", "workflow", "current_stage", "station")
             .order_by("-created_at")
         )
 
-        customer_id = (
-            self.request.query_params.get("customer")
-            or self.request.query_params.get("customer_id")
-        )
+        customer_id = self.request.query_params.get("customer") or self.request.query_params.get("customer_id")
         if customer_id:
             qs = qs.filter(customer_id=customer_id)
 
-        assigned_to_id = (
-            self.request.query_params.get("assigned_to")
-            or self.request.query_params.get("assigned_to_id")
-        )
+        assigned_to_id = self.request.query_params.get("assigned_to") or self.request.query_params.get("assigned_to_id")
         if assigned_to_id:
             qs = qs.filter(assigned_to_id=assigned_to_id)
 
-        station_id = (
-            self.request.query_params.get("station")
-            or self.request.query_params.get("station_id")
-        )
+        # New: stage filter
+        stage_id = self.request.query_params.get("current_stage") or self.request.query_params.get("stage")
+        if stage_id:
+            qs = qs.filter(current_stage_id=stage_id)
+
+        # New canonical meaning: ?station=<id> means Project.station_id
+        station_id = self.request.query_params.get("station") or self.request.query_params.get("station_id")
         if station_id:
-            # Projects assigned to employees who are members of this station
-            qs = qs.filter(assigned_to__stations__id=station_id).distinct()
+            # Transitional compatibility:
+            # Include (project.station == station) OR (assigned_to employee is in station)
+            qs = qs.filter(
+                Q(station_id=station_id) | Q(assigned_to__stations__id=station_id)
+            ).distinct()
 
         return qs
 
@@ -65,8 +63,5 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if not shop:
             raise ValueError("Current user has no shop configured.")
 
-        # created_by exists on your model and serializer
-        serializer.save(
-            shop=shop,
-            created_by=self.request.user,
-        )
+        emp = self.get_employee(shop)
+        serializer.save(shop=shop, created_by=emp)

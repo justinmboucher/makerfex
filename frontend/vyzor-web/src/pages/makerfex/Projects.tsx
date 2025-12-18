@@ -5,18 +5,19 @@
 // Read-only Projects list with URL-persisted filters + presets:
 //
 // Backend filters:
-//   - ?station=<id>
-//   - ?customer=<id>
-//   - ?assigned_to=<employee_id>
+// - ?station=
+// - ?customer=
+// - ?assigned_to=
+// - ?current_stage=   (NEW)
 //
 // Frontend-only filter (persisted in URL for shareability):
-//   - ?vip=1   (filters projects to VIP customers client-side)
+// - ?vip=1 (filters projects to VIP customers client-side)
 //
 // Presets:
-//   - Built-in:
-//       • Assigned to Me (uses /api/accounts/employees/me/ and caches employee)
-//       • VIP Customers  (vip=1)
-//   - User-saved presets store CURRENT filter IDs + vip flag (localStorage)
+// - Built-in:
+//   • Assigned to Me (uses /api/accounts/employees/me/ and caches employee)
+//   • VIP Customers (vip=1)
+// - User-saved presets store CURRENT filter IDs + vip flag (localStorage)
 //
 // UI:
 // - Shows “Preset applied: …” line under filters when a preset was applied
@@ -26,7 +27,7 @@
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Table, Spinner, Badge, Button, Form, Dropdown, Modal } from "react-bootstrap";
+import { Badge, Button, Dropdown, Form, Modal, Spinner, Table } from "react-bootstrap";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { listProjects } from "../../api/projects";
@@ -35,6 +36,8 @@ import type { Project } from "../../api/projects";
 import { listStations, type Station } from "../../api/stations";
 import { listEmployees, type Employee, getMyEmployee } from "../../api/employees";
 import { listCustomers, type Customer } from "../../api/customers";
+
+import { listStages, type WorkflowStage } from "../../api/workflows";
 
 /** Unwraps either {items}, {results}, an array, or returns [] */
 function unwrapItems<T>(data: any): T[] {
@@ -95,15 +98,18 @@ type BuiltinPreset = {
   label: string;
 };
 
+type PresetParams = {
+  station?: string;
+  customer?: string;
+  assigned_to?: string;
+  current_stage?: string;
+  vip?: "1";
+};
+
 type SavedPreset = {
   key: string; // unique
   label: string;
-  params: {
-    station?: string;
-    customer?: string;
-    assigned_to?: string;
-    vip?: "1";
-  };
+  params: PresetParams;
 };
 
 const SAVED_PRESETS_LS_KEY = "mf.projects.saved_presets";
@@ -141,18 +147,20 @@ export default function Projects() {
   const [stations, setStations] = useState<Station[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [stages, setStages] = useState<WorkflowStage[]>([]);
 
   const [savedPresets, setSavedPresets] = useState<SavedPreset[]>(() => loadSavedPresets());
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Keep as strings for <select>
-  const [stationId, setStationId] = useState<string>(() => cleanIdParam(searchParams.get("station")));
-  const [customerId, setCustomerId] = useState<string>(() => cleanIdParam(searchParams.get("customer")));
-  const [assignedToId, setAssignedToId] = useState<string>(() => cleanIdParam(searchParams.get("assigned_to")));
+  // Keep as strings for simple URL sync
+  const [stationId, setStationId] = useState(() => cleanIdParam(searchParams.get("station")));
+  const [customerId, setCustomerId] = useState(() => cleanIdParam(searchParams.get("customer")));
+  const [assignedToId, setAssignedToId] = useState(() => cleanIdParam(searchParams.get("assigned_to")));
+  const [stageId, setStageId] = useState(() => cleanIdParam(searchParams.get("current_stage")));
 
   // Frontend-only filter (VIP)
-  const [vipOnly, setVipOnly] = useState<boolean>(() => searchParams.get("vip") === "1");
+  const [vipOnly, setVipOnly] = useState(() => searchParams.get("vip") === "1");
 
   // UX: tiny line under filters
   const [activePresetLabel, setActivePresetLabel] = useState<string | null>(null);
@@ -187,24 +195,37 @@ export default function Projects() {
     return anyS.name || `Station #${anyS.id}`;
   };
 
+  const stageLabel = (st: WorkflowStage) => {
+    const anySt: any = st as any;
+    return anySt.name || `Stage #${anySt.id}`;
+  };
+
   const customerIsVip = (c: any): boolean => {
     return !!(c?.is_vip ?? c?.vip ?? c?.isVIP ?? false);
   };
 
-  const hasAnyFilters = !!stationId || !!customerId || !!assignedToId || vipOnly;
+  const hasAnyFilters = !!stationId || !!customerId || !!assignedToId || !!stageId || vipOnly;
 
   function buildSuggestedPresetName() {
     const parts: string[] = [];
 
     if (vipOnly) parts.push("VIP");
+
     if (stationId) {
       const s = stations.find((x: any) => String(x.id) === String(stationId));
       parts.push(s ? stationLabel(s) : `Station ${stationId}`);
     }
+
+    if (stageId) {
+      const st = stages.find((x: any) => String(x.id) === String(stageId));
+      parts.push(st ? stageLabel(st) : `Stage ${stageId}`);
+    }
+
     if (customerId) {
       const c: any = customers.find((x: any) => String(x.id) === String(customerId));
       parts.push(c ? customerLabel(c) : `Customer ${customerId}`);
     }
+
     if (assignedToId) {
       const e: any = employees.find((x: any) => String(x.id) === String(assignedToId));
       parts.push(e ? employeeLabel(e) : `Employee ${assignedToId}`);
@@ -218,11 +239,13 @@ export default function Projects() {
     const nextStation = cleanIdParam(searchParams.get("station"));
     const nextCustomer = cleanIdParam(searchParams.get("customer"));
     const nextAssigned = cleanIdParam(searchParams.get("assigned_to"));
+    const nextStage = cleanIdParam(searchParams.get("current_stage"));
     const nextVip = searchParams.get("vip") === "1";
 
     if (nextStation !== stationId) setStationId(nextStation);
     if (nextCustomer !== customerId) setCustomerId(nextCustomer);
     if (nextAssigned !== assignedToId) setAssignedToId(nextAssigned);
+    if (nextStage !== stageId) setStageId(nextStage);
     if (nextVip !== vipOnly) setVipOnly(nextVip);
 
     didInitFromUrl.current = true;
@@ -235,10 +258,11 @@ export default function Projects() {
 
     (async () => {
       try {
-        const [stationsRes, employeesRes, customersRes] = await Promise.all([
+        const [stationsRes, employeesRes, customersRes, stagesRes] = await Promise.all([
           listStations(),
           listEmployees({ with_counts: 0 } as any),
           listCustomers(),
+          listStages(),
         ]);
 
         if (!alive) return;
@@ -246,11 +270,13 @@ export default function Projects() {
         setStations(unwrapItems<Station>(stationsRes));
         setEmployees(unwrapItems<Employee>(employeesRes));
         setCustomers(unwrapItems<Customer>(customersRes));
+        setStages(unwrapItems<WorkflowStage>(stagesRes));
       } catch {
         if (!alive) return;
         setStations([]);
         setEmployees([]);
         setCustomers([]);
+        setStages([]);
       }
     })();
 
@@ -273,6 +299,7 @@ export default function Projects() {
     setOrDelete("station", stationId);
     setOrDelete("customer", customerId);
     setOrDelete("assigned_to", assignedToId);
+    setOrDelete("current_stage", stageId);
     setOrDelete("vip", vipOnly ? "1" : "");
 
     const currentStr = searchParams.toString();
@@ -281,8 +308,9 @@ export default function Projects() {
     if (currentStr !== nextStr) {
       setSearchParams(next, { replace: true });
     }
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stationId, customerId, assignedToId, vipOnly]);
+  }, [stationId, customerId, assignedToId, stageId, vipOnly]);
 
   // Fetch projects whenever backend filters change
   useEffect(() => {
@@ -297,11 +325,12 @@ export default function Projects() {
         if (stationId) params.station = Number(stationId);
         if (customerId) params.customer = Number(customerId);
         if (assignedToId) params.assigned_to = Number(assignedToId);
+        if (stageId) params.current_stage = Number(stageId);
 
         const { items } = await listProjects(params);
 
         if (!alive) return;
-        setItems(items);
+        setItems(items as Project[]);
       } catch (e: any) {
         if (!alive) return;
         setErr(e?.response?.data?.detail || e?.message || "Failed to load projects");
@@ -314,7 +343,7 @@ export default function Projects() {
     return () => {
       alive = false;
     };
-  }, [stationId, customerId, assignedToId]);
+  }, [stationId, customerId, assignedToId, stageId]);
 
   // Customer lookup for VIP pill and VIP-only filter
   const customerById = useMemo(() => {
@@ -338,19 +367,19 @@ export default function Projects() {
     setStationId("");
     setCustomerId("");
     setAssignedToId("");
+    setStageId("");
     setVipOnly(false);
+
     setSearchParams({}, { replace: true });
     setActivePresetLabel(null);
   }
 
-  function applyResolvedParams(
-    label: string,
-    resolved: { station?: string; customer?: string; assigned_to?: string; vip?: "1" }
-  ) {
+  function applyResolvedParams(label: string, resolved: PresetParams) {
     const next = new URLSearchParams();
     if (resolved.station) next.set("station", resolved.station);
     if (resolved.customer) next.set("customer", resolved.customer);
     if (resolved.assigned_to) next.set("assigned_to", resolved.assigned_to);
+    if (resolved.current_stage) next.set("current_stage", resolved.current_stage);
     if (resolved.vip) next.set("vip", resolved.vip);
 
     setSearchParams(next, { replace: true });
@@ -370,13 +399,13 @@ export default function Projects() {
 
     if (preset.key === "assigned_to_me") {
       try {
-        const me = await getMyEmployee(); // ✅ fetch + cache
+        const me = await getMyEmployee(); // fetch + cache
         if (!me?.id) {
           setActivePresetLabel("Assigned to Me (no employee record)");
           return;
         }
         applyResolvedParams(preset.label, { assigned_to: String(me.id) });
-      } catch (e) {
+      } catch {
         setActivePresetLabel("Assigned to Me (failed to load)");
       }
     }
@@ -411,7 +440,7 @@ export default function Projects() {
       return;
     }
 
-    if (!stationId && !customerId && !assignedToId && !vipOnly) {
+    if (!hasAnyFilters) {
       setPresetNameErr("Select at least one filter to save.");
       return;
     }
@@ -423,6 +452,7 @@ export default function Projects() {
         station: stationId || undefined,
         customer: customerId || undefined,
         assigned_to: assignedToId || undefined,
+        current_stage: stageId || undefined,
         vip: vipOnly ? "1" : undefined,
       },
     };
@@ -430,7 +460,6 @@ export default function Projects() {
     const next = [newPreset, ...savedPresets].slice(0, 20);
     setSavedPresets(next);
     persistSavedPresets(next);
-
     setActivePresetLabel(label);
     setShowSaveModal(false);
   }
@@ -446,157 +475,158 @@ export default function Projects() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "end",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h3 style={{ margin: 0 }}>Makerfex Projects</h3>
-          <div style={{ opacity: 0.7, marginTop: 4 }}>{rows.length} loaded</div>
+    <div>
+      <h3 className="mb-1">Makerfex Projects</h3>
+
+      <div className="mb-3 text-muted">{rows.length} loaded</div>
+
+      <div className="d-flex flex-wrap gap-2 align-items-end mb-2">
+        {/* Station */}
+        <div style={{ minWidth: 220 }}>
+          <Form.Label className="mb-1">Station</Form.Label>
+          <Form.Select
+            value={stationId}
+            onChange={(e) => {
+              setStationId(e.target.value);
+              setActivePresetLabel(null);
+            }}
+          >
+            <option value="">All stations</option>
+            {stations.map((s: any) => (
+              <option key={s.id} value={String(s.id)}>
+                {stationLabel(s)}
+              </option>
+            ))}
+          </Form.Select>
         </div>
 
-        <div style={{ display: "flex", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
-          <Form.Group style={{ minWidth: 220 }} controlId="projectsStationFilter">
-            <Form.Label style={{ marginBottom: 4 }}>Station</Form.Label>
-            <Form.Select
-              value={stationId}
-              onChange={(e) => {
-                setStationId(e.target.value);
-                setActivePresetLabel(null);
-              }}
-            >
-              <option value="">All stations</option>
-              {stations.map((s: any) => (
-                <option key={s.id} value={String(s.id)}>
-                  {stationLabel(s)}
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
+        {/* Stage */}
+        <div style={{ minWidth: 220 }}>
+          <Form.Label className="mb-1">Stage</Form.Label>
+          <Form.Select
+            value={stageId}
+            onChange={(e) => {
+              setStageId(e.target.value);
+              setActivePresetLabel(null);
+            }}
+          >
+            <option value="">All stages</option>
+            {stages.map((st: any) => (
+              <option key={st.id} value={String(st.id)}>
+                {stageLabel(st)}
+              </option>
+            ))}
+          </Form.Select>
+        </div>
 
-          <Form.Group style={{ minWidth: 220 }} controlId="projectsCustomerFilter">
-            <Form.Label style={{ marginBottom: 4 }}>Customer</Form.Label>
-            <Form.Select
-              value={customerId}
-              onChange={(e) => {
-                setCustomerId(e.target.value);
-                setActivePresetLabel(null);
-              }}
-            >
-              <option value="">All customers</option>
-              {customers.map((c: any) => (
-                <option key={c.id} value={String(c.id)}>
-                  {customerLabel(c)}
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
+        {/* Customer */}
+        <div style={{ minWidth: 220 }}>
+          <Form.Label className="mb-1">Customer</Form.Label>
+          <Form.Select
+            value={customerId}
+            onChange={(e) => {
+              setCustomerId(e.target.value);
+              setActivePresetLabel(null);
+            }}
+          >
+            <option value="">All customers</option>
+            {customers.map((c: any) => (
+              <option key={c.id} value={String(c.id)}>
+                {customerLabel(c)}
+              </option>
+            ))}
+          </Form.Select>
+        </div>
 
-          <Form.Group style={{ minWidth: 220 }} controlId="projectsAssignedFilter">
-            <Form.Label style={{ marginBottom: 4 }}>Assigned To</Form.Label>
-            <Form.Select
-              value={assignedToId}
-              onChange={(e) => {
-                setAssignedToId(e.target.value);
-                setActivePresetLabel(null);
-              }}
-            >
-              <option value="">Anyone</option>
-              {employees.map((e: any) => (
-                <option key={e.id} value={String(e.id)}>
-                  {employeeLabel(e)}
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
+        {/* Assigned */}
+        <div style={{ minWidth: 220 }}>
+          <Form.Label className="mb-1">Assigned To</Form.Label>
+          <Form.Select
+            value={assignedToId}
+            onChange={(e) => {
+              setAssignedToId(e.target.value);
+              setActivePresetLabel(null);
+            }}
+          >
+            <option value="">Anyone</option>
+            {employees.map((e: any) => (
+              <option key={e.id} value={String(e.id)}>
+                {employeeLabel(e)}
+              </option>
+            ))}
+          </Form.Select>
+        </div>
 
-          <Form.Group>
-            <Form.Label style={{ marginBottom: 4 }}>VIP</Form.Label>
-            <Form.Check
-              type="switch"
-              id="projectsVipSwitch"
-              label="VIP only"
-              checked={vipOnly}
-              onChange={(e) => {
-                setVipOnly(e.target.checked);
-                setActivePresetLabel(null);
-              }}
-            />
-          </Form.Group>
+        {/* VIP */}
+        <div className="d-flex flex-column" style={{ minWidth: 120 }}>
+          <Form.Label className="mb-1">VIP</Form.Label>
+          <Form.Check
+            type="checkbox"
+            label="VIP only"
+            checked={vipOnly}
+            onChange={(e) => {
+              setVipOnly(e.target.checked);
+              setActivePresetLabel(null);
+            }}
+          />
+        </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "end" }}>
-            <Dropdown>
-              <Dropdown.Toggle variant="outline-secondary">Presets</Dropdown.Toggle>
-              <Dropdown.Menu style={{ minWidth: 300 }}>
-                {savedPresets.length > 0 && (
-                  <>
-                    <Dropdown.Header>Saved</Dropdown.Header>
-                    {savedPresets.map((p) => (
-                      <div
-                        key={p.key}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+        {/* Presets */}
+        <div className="ms-auto d-flex flex-wrap gap-2 align-items-end">
+          <Dropdown>
+            <Dropdown.Toggle variant="outline-secondary" size="sm">
+              Presets
+            </Dropdown.Toggle>
+            <Dropdown.Menu style={{ minWidth: 280 }}>
+              {savedPresets.length > 0 && (
+                <>
+                  <Dropdown.Header>Saved</Dropdown.Header>
+                  {savedPresets.map((p) => (
+                    <Dropdown.Item
+                      key={p.key}
+                      className="d-flex align-items-center gap-2"
+                      onClick={() => applySavedPreset(p)}
+                    >
+                      <span style={{ flex: 1 }}>{p.label}</span>
+                      <Button
+                        variant="outline-danger"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteSavedPreset(p.key);
+                        }}
+                        title="Delete preset"
                       >
-                        <Dropdown.Item onClick={() => applySavedPreset(p)} style={{ flex: 1 }}>
-                          {p.label}
-                        </Dropdown.Item>
-                        <Button
-                          size="sm"
-                          variant="link"
-                          style={{ textDecoration: "none", paddingRight: 10 }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            deleteSavedPreset(p.key);
-                          }}
-                          title="Delete preset"
-                        >
-                          ✕
-                        </Button>
-                      </div>
-                    ))}
-                    <Dropdown.Divider />
-                  </>
-                )}
+                        ✕
+                      </Button>
+                    </Dropdown.Item>
+                  ))}
+                  <Dropdown.Divider />
+                </>
+              )}
 
-                <Dropdown.Header>Built-in</Dropdown.Header>
-                {BUILTIN_PRESETS.map((p) => (
-                  <Dropdown.Item key={p.key} onClick={() => applyBuiltinPreset(p)}>
-                    {p.label}
-                  </Dropdown.Item>
-                ))}
-              </Dropdown.Menu>
-            </Dropdown>
+              <Dropdown.Header>Built-in</Dropdown.Header>
+              {BUILTIN_PRESETS.map((p) => (
+                <Dropdown.Item key={p.key} onClick={() => applyBuiltinPreset(p)}>
+                  {p.label}
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Menu>
+          </Dropdown>
 
-            <Form.Group>
-              <Form.Label style={{ marginBottom: 4 }}>&nbsp;</Form.Label>
-              <Button
-                variant="outline-secondary"
-                onClick={openSavePresetModal}
-                disabled={!hasAnyFilters}
-                title={hasAnyFilters ? "Save current filters as a preset" : "Select filters first"}
-              >
-                Save preset
-              </Button>
-            </Form.Group>
+          <Button variant="outline-primary" size="sm" disabled={!hasAnyFilters} onClick={openSavePresetModal}>
+            Save preset
+          </Button>
 
-            <Form.Group>
-              <Form.Label style={{ marginBottom: 4 }}>&nbsp;</Form.Label>
-              <Button variant="outline-secondary" onClick={clearFilters} disabled={!hasAnyFilters}>
-                Clear filters
-              </Button>
-            </Form.Group>
-          </div>
+          <Button variant="outline-secondary" size="sm" disabled={!hasAnyFilters} onClick={clearFilters}>
+            Clear filters
+          </Button>
         </div>
       </div>
 
       {activePresetLabel && (
-        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.65 }}>
+        <div className="mb-3 text-muted">
           Preset applied: <strong>{activePresetLabel}</strong>
         </div>
       )}
@@ -606,35 +636,30 @@ export default function Projects() {
         <Modal.Header closeButton>
           <Modal.Title>Save preset</Modal.Title>
         </Modal.Header>
-
         <Modal.Body>
-          <Form.Group controlId="savePresetName">
-            <Form.Label>Preset name</Form.Label>
-            <Form.Control
-              type="text"
-              value={presetName}
-              onChange={(e) => {
-                setPresetName(e.target.value);
-                if (presetNameErr) setPresetNameErr(null);
-              }}
-              placeholder="e.g., VIP • Acme • Jordan"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  confirmSavePreset();
-                }
-              }}
-            />
-            {presetNameErr && <div style={{ marginTop: 6, fontSize: 12, color: "crimson" }}>{presetNameErr}</div>}
-            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-              This saves your current filters (Station / Customer / Assigned To / VIP) on this device.
-            </div>
-          </Form.Group>
+          <Form.Label>Preset name</Form.Label>
+          <Form.Control
+            value={presetName}
+            onChange={(e) => {
+              setPresetName(e.target.value);
+              if (presetNameErr) setPresetNameErr(null);
+            }}
+            placeholder="e.g., VIP • Finishing • Jordan"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                confirmSavePreset();
+              }
+            }}
+          />
+          {presetNameErr && <div className="text-danger mt-2">{presetNameErr}</div>}
+          <div className="text-muted mt-3" style={{ fontSize: 13 }}>
+            This saves your current filters (Station / Stage / Customer / Assigned To / VIP) on this device.
+          </div>
         </Modal.Body>
-
         <Modal.Footer>
-          <Button variant="outline-secondary" onClick={closeSavePresetModal}>
+          <Button variant="secondary" onClick={closeSavePresetModal}>
             Cancel
           </Button>
           <Button variant="primary" onClick={confirmSavePreset}>
@@ -644,30 +669,29 @@ export default function Projects() {
       </Modal>
 
       {loading && (
-        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="d-flex align-items-center gap-2 text-muted mt-3">
           <Spinner animation="border" size="sm" />
-          <span>Loading projects…</span>
+          Loading projects…
         </div>
       )}
 
-      {err && <div style={{ marginTop: 16, color: "crimson" }}>{err}</div>}
+      {err && <div className="text-danger mt-3">{err}</div>}
 
       {!loading && !err && (
-        <div style={{ marginTop: 16 }}>
-          <Table responsive hover>
+        <div className="mt-3">
+          <Table hover responsive>
             <thead>
               <tr>
-                <th style={{ width: 56 }}>Photo</th>
+                <th style={{ width: 72 }}>Photo</th>
                 <th>Name</th>
                 <th>Status</th>
                 <th>Priority</th>
                 <th>Due</th>
                 <th>Customer</th>
                 <th>Assigned</th>
-                <th style={{ width: 120 }}></th>
+                <th style={{ width: 92 }} />
               </tr>
             </thead>
-
             <tbody>
               {rows.map((p) => {
                 const c = p.customer ? customerById.get(Number(p.customer)) : null;
@@ -680,16 +704,31 @@ export default function Projects() {
                         <img
                           src={p.photo_url}
                           alt=""
-                          style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }}
+                          style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }}
                         />
                       ) : (
-                        <div style={{ width: 40, height: 40, borderRadius: 8, background: "rgba(0,0,0,0.08)" }} />
+                        <div
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 8,
+                            background: "rgba(0,0,0,0.06)",
+                          }}
+                        />
                       )}
                     </td>
 
                     <td>
-                      <div style={{ fontWeight: 600 }}>{p.name}</div>
-                      {p.reference_code ? <div style={{ fontSize: 12, opacity: 0.7 }}>{p.reference_code}</div> : null}
+                      <div className="d-flex flex-column">
+                        <Link to={`/projects/${p.id}`} style={{ textDecoration: "none" }}>
+                          {p.name}
+                        </Link>
+                        {p.reference_code ? (
+                          <div className="text-muted" style={{ fontSize: 12 }}>
+                            {p.reference_code}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
 
                     <td>
@@ -704,14 +743,16 @@ export default function Projects() {
 
                     <td>
                       {p.customer ? (
-                        <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                          <Link to={`/customers/${p.customer}`}>{p.customer_name ?? `Customer #${p.customer}`}</Link>
+                        <div className="d-flex align-items-center gap-2">
+                          <Link to={`/customers/${p.customer}`} style={{ textDecoration: "none" }}>
+                            {p.customer_name ?? `Customer #${p.customer}`}
+                          </Link>
                           {isVip ? (
                             <Badge bg="warning" text="dark">
                               VIP
                             </Badge>
                           ) : null}
-                        </span>
+                        </div>
                       ) : (
                         "—"
                       )}
@@ -719,16 +760,14 @@ export default function Projects() {
 
                     <td>
                       {p.assigned_to ? (
-                        <Link to={`/employees/${p.assigned_to}`}>
-                          {p.assigned_to_name ?? `Employee #${p.assigned_to}`}
-                        </Link>
+                        <span>{p.assigned_to_name ?? `Employee #${p.assigned_to}`}</span>
                       ) : (
                         "—"
                       )}
                     </td>
 
-                    <td style={{ textAlign: "right" }}>
-                      <Button size="sm" variant="outline-primary" onClick={() => navigate(`/projects/${p.id}`)}>
+                    <td className="text-end">
+                      <Button variant="outline-primary" size="sm" onClick={() => navigate(`/projects/${p.id}`)}>
                         View
                       </Button>
                     </td>
@@ -738,7 +777,7 @@ export default function Projects() {
 
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", opacity: 0.7, padding: 24 }}>
+                  <td colSpan={8} className="text-muted">
                     No projects found.
                   </td>
                 </tr>

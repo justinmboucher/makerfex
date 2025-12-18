@@ -9,6 +9,9 @@ class ProjectSerializer(serializers.ModelSerializer):
     photo_url = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     assigned_to_name = serializers.SerializerMethodField()
+    station_name = serializers.SerializerMethodField()
+    workflow_name = serializers.SerializerMethodField()
+    current_stage_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -33,6 +36,10 @@ class ProjectSerializer(serializers.ModelSerializer):
             "created_by_name",
             "assigned_to",
             "assigned_to_name",
+            "station",
+            "station_name",
+            "workflow_name",
+            "current_stage_name",
             "estimated_hours",
             "actual_hours",
             "is_archived",
@@ -47,6 +54,9 @@ class ProjectSerializer(serializers.ModelSerializer):
             "customer_name",
             "created_by_name",
             "assigned_to_name",
+            "station_name",
+            "workflow_name",
+            "current_stage_name",
         ]
 
     def _employee_display_name(self, emp):
@@ -92,3 +102,12 @@ class ProjectSerializer(serializers.ModelSerializer):
             url = obj.photo.url
             return request.build_absolute_uri(url) if request else url
         return None
+
+    def get_station_name(self, obj):
+        return getattr(obj.station, "name", None) if getattr(obj, "station", None) else None
+
+    def get_workflow_name(self, obj):
+        return getattr(obj.workflow, "name", None) if getattr(obj, "workflow", None) else None
+
+    def get_current_stage_name(self, obj):
+        return getattr(obj.current_stage, "name", None) if getattr(obj, "current_stage", None) else None
