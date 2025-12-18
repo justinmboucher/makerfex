@@ -687,6 +687,7 @@ export default function Projects() {
                 <th>Status</th>
                 <th>Priority</th>
                 <th>Due</th>
+                <th>Station</th>
                 <th>Customer</th>
                 <th>Assigned</th>
                 <th style={{ width: 92 }} />
@@ -740,6 +741,8 @@ export default function Projects() {
                     </td>
 
                     <td>{formatDate(p.due_date)}</td>
+
+                    <td>{(p as any).station_name ?? "—"}</td>
 
                     <td>
                       {p.customer ? (
