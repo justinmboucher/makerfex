@@ -2,33 +2,12 @@
 // ============================================================================
 // Makerfex Projects Page (Vyzor Shell)
 // ----------------------------------------------------------------------------
-// Read-only Projects list with URL-persisted filters + presets.
-//
-// Backend filters:
-// - ?station=
-// - ?customer=
-// - ?assigned_to=
-// - ?current_stage=
-// - ?is_completed=true|false  (NEW; stage-truth completion)
-//
-// Frontend-only filter (persisted in URL for shareability):
-// - ?vip=1 (filters projects to VIP customers client-side)
-//
-// Presets:
-// - Built-in:
-//   • Assigned to Me (uses /api/accounts/employees/me/ and caches employee)
-//   • VIP Customers (vip=1)
-//   • In Progress (is_completed=false)
-//   • Completed (is_completed=true)
-// - User-saved presets store CURRENT filter IDs + vip + is_completed (localStorage)
-//
-// UI:
-// - Shows “Preset applied: …” line under filters when a preset was applied
-// - Clears that line when user changes filters manually or clears filters
-// - Save preset uses a React-Bootstrap Modal
-// - Shows VIP pill next to customer name for VIP customers only
-// - Stage is primary indicator; status is secondary
-// - Uses Bootstrap Icons for actions (log sale + view)
+// Adds:
+// - Server-side free-text search (?q=) w/ debounce
+// - Server-side sorting (?ordering=) asc/desc for all non-action columns
+// - Server-side pagination (?page=) + page size (?page_size= 10/25/50/100; default 25)
+// - VIP filter moved to backend (?vip=1) so count/paging stays correct
+// - Preset dropdown indentation for clarity
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -37,12 +16,12 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { listProjects } from "../../api/projects";
 import type { Project } from "../../api/projects";
+
 import { listStations, type Station } from "../../api/stations";
 import { listEmployees, type Employee, getMyEmployee } from "../../api/employees";
 import { listCustomers, type Customer } from "../../api/customers";
 import { listStages, type WorkflowStage } from "../../api/workflows";
 
-/** Unwraps either {items}, {results}, an array, or returns [] */
 function unwrapItems<T>(data: any): T[] {
   if (!data) return [];
   if (Array.isArray(data)) return data;
@@ -96,7 +75,7 @@ type PresetParams = {
 };
 
 type SavedPreset = {
-  key: string; // unique
+  key: string;
   label: string;
   params: PresetParams;
 };
@@ -130,56 +109,87 @@ function persistSavedPresets(presets: SavedPreset[]) {
   }
 }
 
+function parseIntParam(v: string | null, fallback: number) {
+  if (!v) return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+function parsePageSize(v: string | null) {
+  const n = parseIntParam(v, 25);
+  if ([10, 25, 50, 100].includes(n)) return n;
+  return 25;
+}
+
+// Ordering helpers
+function toggleOrdering(current: string, field: string) {
+  if (!current) return field; // default asc
+  if (current === field) return `-${field}`; // toggle to desc
+  if (current === `-${field}`) return field; // toggle to asc
+  return field;
+}
+
+function orderingIcon(current: string, field: string) {
+  if (current === field) return <i className="ri-arrow-up-s-line" />;
+  if (current === `-${field}`) return <i className="ri-arrow-down-s-line" />;
+  return <i className="ri-arrow-up-down-line" />;
+}
+
 export default function Projects() {
-  const [items, setItems] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-
-  const [stations, setStations] = useState<Station[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [stages, setStages] = useState<WorkflowStage[]>([]);
-
-  const [savedPresets, setSavedPresets] = useState<SavedPreset[]>(() => loadSavedPresets());
-
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const didInitFromUrl = useRef(false);
 
-  // Keep as strings for simple URL sync
+  // Core filter states
   const [stationId, setStationId] = useState(() => cleanIdParam(searchParams.get("station")));
   const [customerId, setCustomerId] = useState(() => cleanIdParam(searchParams.get("customer")));
   const [assignedToId, setAssignedToId] = useState(() => cleanIdParam(searchParams.get("assigned_to")));
   const [stageId, setStageId] = useState(() => cleanIdParam(searchParams.get("current_stage")));
 
-  // Backend completion filter (stage-truth)
+  // Completion filter (stage-truth)
   const [isCompleted, setIsCompleted] = useState<"" | "true" | "false">(() => {
     const v = searchParams.get("is_completed");
     return v === "true" || v === "false" ? v : "";
   });
 
-  // Frontend-only filter (VIP)
+  // VIP is now backend-driven
   const [vipOnly, setVipOnly] = useState(() => searchParams.get("vip") === "1");
 
-  // UX: tiny line under filters
+  // Search (server-side)
+  const [q, setQ] = useState(() => searchParams.get("q") || "");
+  const qDebounceRef = useRef<number | null>(null);
+
+  // Sorting (server-side)
+  const [ordering, setOrdering] = useState(() => searchParams.get("ordering") || "");
+
+  // Pagination (server-side)
+  const [page, setPage] = useState(() => parseIntParam(searchParams.get("page"), 1));
+  const [pageSize, setPageSize] = useState(() => parsePageSize(searchParams.get("page_size")));
+
+  // Data state
+  const [items, setItems] = useState<Project[]>([]);
+  const [count, setCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Option lists
+  const [stations, setStations] = useState<Station[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [stages, setStages] = useState<WorkflowStage[]>([]);
+
+  // Presets
+  const [savedPresets, setSavedPresets] = useState<SavedPreset[]>(() => loadSavedPresets());
   const [activePresetLabel, setActivePresetLabel] = useState<string | null>(null);
 
-  // Save preset modal state
+  // Save preset modal
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [presetName, setPresetName] = useState("");
   const [presetNameErr, setPresetNameErr] = useState<string | null>(null);
 
-  const navigate = useNavigate();
-
-  // Prevent initial URL sync effect from overwriting initial state
-  const didInitFromUrl = useRef(false);
-
   const employeeLabel = (e: Employee) => {
     const anyE: any = e as any;
-    return (
-      anyE.display_name ||
-      `${anyE.first_name ?? ""} ${anyE.last_name ?? ""}`.trim() ||
-      anyE.email ||
-      `Employee #${anyE.id}`
-    );
+    return anyE.display_name || `${anyE.first_name ?? ""} ${anyE.last_name ?? ""}`.trim() || anyE.email || `Employee #${anyE.id}`;
   };
 
   const customerLabel = (c: Customer) => {
@@ -197,54 +207,30 @@ export default function Projects() {
     return anySt.name || `Stage #${anySt.id}`;
   };
 
-  const customerIsVip = (c: any): boolean => {
-    return !!(c?.is_vip ?? c?.vip ?? c?.isVIP ?? false);
-  };
+  const customerIsVip = (c: any): boolean => !!(c?.is_vip ?? c?.vip ?? c?.isVIP ?? false);
 
   const hasAnyFilters =
-    !!stationId || !!customerId || !!assignedToId || !!stageId || vipOnly || !!isCompleted;
+    !!stationId || !!customerId || !!assignedToId || !!stageId || !!isCompleted || vipOnly || !!q.trim() || !!ordering || page !== 1 || pageSize !== 25;
 
-  function buildSuggestedPresetName() {
-    const parts: string[] = [];
+  const pageCount = useMemo(() => Math.max(1, Math.ceil((count || 0) / pageSize)), [count, pageSize]);
 
-    if (isCompleted === "true") parts.push("Completed");
-    if (isCompleted === "false") parts.push("In Progress");
-    if (vipOnly) parts.push("VIP");
-
-    if (stationId) {
-      const s = (stations as any[]).find((x) => String(x.id) === String(stationId));
-      parts.push(s ? stationLabel(s) : `Station ${stationId}`);
-    }
-
-    if (stageId) {
-      const st = (stages as any[]).find((x) => String(x.id) === String(stageId));
-      parts.push(st ? stageLabel(st) : `Stage ${stageId}`);
-    }
-
-    if (customerId) {
-      const c: any = (customers as any[]).find((x) => String(x.id) === String(customerId));
-      parts.push(c ? customerLabel(c) : `Customer ${customerId}`);
-    }
-
-    if (assignedToId) {
-      const e: any = (employees as any[]).find((x) => String(x.id) === String(assignedToId));
-      parts.push(e ? employeeLabel(e) : `Employee ${assignedToId}`);
-    }
-
-    return parts.length ? parts.join(" • ") : "My preset";
-  }
-
-  // Read URL -> State (back/forward support)
+  // URL -> state (back/forward)
   useEffect(() => {
     const nextStation = cleanIdParam(searchParams.get("station"));
     const nextCustomer = cleanIdParam(searchParams.get("customer"));
     const nextAssigned = cleanIdParam(searchParams.get("assigned_to"));
     const nextStage = cleanIdParam(searchParams.get("current_stage"));
     const nextVip = searchParams.get("vip") === "1";
+
     const nextIsCompleted = (() => {
       const v = searchParams.get("is_completed");
       return v === "true" || v === "false" ? (v as "true" | "false") : "";
     })();
+
+    const nextQ = searchParams.get("q") || "";
+    const nextOrdering = searchParams.get("ordering") || "";
+    const nextPage = parseIntParam(searchParams.get("page"), 1);
+    const nextPageSize = parsePageSize(searchParams.get("page_size"));
 
     if (nextStation !== stationId) setStationId(nextStation);
     if (nextCustomer !== customerId) setCustomerId(nextCustomer);
@@ -253,11 +239,16 @@ export default function Projects() {
     if (nextVip !== vipOnly) setVipOnly(nextVip);
     if (nextIsCompleted !== isCompleted) setIsCompleted(nextIsCompleted);
 
+    if (nextQ !== q) setQ(nextQ);
+    if (nextOrdering !== ordering) setOrdering(nextOrdering);
+    if (nextPage !== page) setPage(nextPage);
+    if (nextPageSize !== pageSize) setPageSize(nextPageSize);
+
     didInitFromUrl.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // Load filter option lists once (non-fatal if any fail)
+  // Load dropdown options once
   useEffect(() => {
     let alive = true;
 
@@ -290,12 +281,11 @@ export default function Projects() {
     };
   }, []);
 
-  // Push State -> URL (bookmark/share support)
+  // State -> URL (persist)
   useEffect(() => {
     if (!didInitFromUrl.current) return;
 
     const next = new URLSearchParams(searchParams);
-
     const setOrDelete = (key: string, val: string) => {
       if (val) next.set(key, val);
       else next.delete(key);
@@ -305,17 +295,37 @@ export default function Projects() {
     setOrDelete("customer", customerId);
     setOrDelete("assigned_to", assignedToId);
     setOrDelete("current_stage", stageId);
-    setOrDelete("vip", vipOnly ? "1" : "");
     setOrDelete("is_completed", isCompleted);
+    setOrDelete("vip", vipOnly ? "1" : "");
+    setOrDelete("q", q.trim());
+    setOrDelete("ordering", ordering);
+    setOrDelete("page", String(page));
+    setOrDelete("page_size", String(pageSize));
 
     const currentStr = searchParams.toString();
     const nextStr = next.toString();
-
     if (currentStr !== nextStr) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stationId, customerId, assignedToId, stageId, vipOnly, isCompleted]);
+  }, [stationId, customerId, assignedToId, stageId, isCompleted, vipOnly, q, ordering, page, pageSize]);
 
-  // Fetch projects whenever backend filters change
+  // Debounce q -> reset page and clear preset indicator
+  useEffect(() => {
+    if (!didInitFromUrl.current) return;
+
+    if (qDebounceRef.current) window.clearTimeout(qDebounceRef.current);
+    qDebounceRef.current = window.setTimeout(() => {
+      // When searching, always jump to page 1
+      setPage(1);
+      setActivePresetLabel(null);
+    }, 350);
+
+    return () => {
+      if (qDebounceRef.current) window.clearTimeout(qDebounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
+
+  // Fetch projects
   useEffect(() => {
     let alive = true;
 
@@ -324,17 +334,26 @@ export default function Projects() {
       setErr(null);
 
       try {
-        const params: Record<string, any> = {};
+        const params: Record<string, any> = {
+          page,
+          page_size: pageSize,
+        };
+
         if (stationId) params.station = Number(stationId);
         if (customerId) params.customer = Number(customerId);
         if (assignedToId) params.assigned_to = Number(assignedToId);
         if (stageId) params.current_stage = Number(stageId);
         if (isCompleted) params.is_completed = isCompleted;
+        if (vipOnly) params.vip = 1;
 
-        const { items } = await listProjects(params);
+        if (q.trim()) params.q = q.trim();
+        if (ordering) params.ordering = ordering;
+
+        const res = await listProjects(params);
 
         if (!alive) return;
-        setItems(items as Project[]);
+        setItems(res.items || []);
+        setCount(res.count ?? (res.items ? res.items.length : 0));
       } catch (e: any) {
         if (!alive) return;
         setErr(e?.response?.data?.detail || e?.message || "Failed to load projects");
@@ -347,9 +366,8 @@ export default function Projects() {
     return () => {
       alive = false;
     };
-  }, [stationId, customerId, assignedToId, stageId, isCompleted]);
+  }, [stationId, customerId, assignedToId, stageId, isCompleted, vipOnly, q, ordering, page, pageSize]);
 
-  // Customer lookup for VIP pill and VIP-only filter
   const customerById = useMemo(() => {
     const map = new Map<number, any>();
     for (const c of customers as any[]) {
@@ -358,37 +376,36 @@ export default function Projects() {
     return map;
   }, [customers]);
 
-  const rows = useMemo(() => {
-    if (!vipOnly) return items;
-
-    return items.filter((p) => {
-      if (!p.customer) return false;
-      const c = customerById.get(Number(p.customer));
-      return c ? customerIsVip(c) : false;
-    });
-  }, [items, vipOnly, customerById]);
-
-  function clearFilters() {
+  function clearAll() {
     setStationId("");
     setCustomerId("");
     setAssignedToId("");
     setStageId("");
     setIsCompleted("");
     setVipOnly(false);
-
+    setQ("");
+    setOrdering("");
+    setPage(1);
+    setPageSize(25);
     setSearchParams({}, { replace: true });
     setActivePresetLabel(null);
   }
 
   function applyResolvedParams(label: string, resolved: PresetParams) {
+    // Presets should set filters and reset to page 1, keep page size as-is
     const next = new URLSearchParams();
 
     if (resolved.station) next.set("station", resolved.station);
     if (resolved.customer) next.set("customer", resolved.customer);
     if (resolved.assigned_to) next.set("assigned_to", resolved.assigned_to);
     if (resolved.current_stage) next.set("current_stage", resolved.current_stage);
-    if (resolved.vip) next.set("vip", resolved.vip);
     if (resolved.is_completed) next.set("is_completed", resolved.is_completed);
+    if (resolved.vip) next.set("vip", resolved.vip);
+
+    // Keep search/sort empty when applying a preset (clean mental model)
+    // (If you want presets to store q/ordering later, we can add it.)
+    next.set("page", "1");
+    next.set("page_size", String(pageSize));
 
     setSearchParams(next, { replace: true });
     setActivePresetLabel(label);
@@ -396,7 +413,7 @@ export default function Projects() {
 
   async function applyBuiltinPreset(preset: BuiltinPreset) {
     if (preset.key === "all") {
-      clearFilters();
+      clearAll();
       return;
     }
 
@@ -417,7 +434,7 @@ export default function Projects() {
 
     if (preset.key === "assigned_to_me") {
       try {
-        const me = await getMyEmployee(); // fetch + cache
+        const me = await getMyEmployee();
         if (!me?.id) {
           setActivePresetLabel("Assigned to Me (no employee record)");
           return;
@@ -434,15 +451,13 @@ export default function Projects() {
   }
 
   function openSavePresetModal() {
-    if (!hasAnyFilters) return;
-    setPresetName(buildSuggestedPresetName());
+    // save only core filters (not q/order/page)
+    const coreHasAnything = !!stationId || !!customerId || !!assignedToId || !!stageId || !!isCompleted || vipOnly;
+    if (!coreHasAnything) return;
+
+    setPresetName("My preset");
     setPresetNameErr(null);
     setShowSaveModal(true);
-  }
-
-  function closeSavePresetModal() {
-    setShowSaveModal(false);
-    setPresetNameErr(null);
   }
 
   function confirmSavePreset() {
@@ -458,7 +473,8 @@ export default function Projects() {
       return;
     }
 
-    if (!hasAnyFilters) {
+    const coreHasAnything = !!stationId || !!customerId || !!assignedToId || !!stageId || !!isCompleted || vipOnly;
+    if (!coreHasAnything) {
       setPresetNameErr("Select at least one filter to save.");
       return;
     }
@@ -494,12 +510,37 @@ export default function Projects() {
     }
   }
 
+  // Sorting: map columns to backend ordering fields
+  const sortFields = {
+    name: "name",
+    stage: "current_stage__order",
+    priority: "priority",
+    due: "due_date",
+    station: "station__name",
+    customer: "customer__last_name",
+    assigned: "assigned_to__last_name",
+  } as const;
+
+  function onSort(field: keyof typeof sortFields) {
+    setOrdering((cur) => toggleOrdering(cur, sortFields[field]));
+    setPage(1);
+    setActivePresetLabel(null);
+  }
+
+  // Pagination helpers
+  function goToPage(nextPage: number) {
+    const target = Math.max(1, Math.min(pageCount, nextPage));
+    setPage(target);
+  }
+
   return (
     <>
       <h3 className="mb-3">Makerfex Projects</h3>
 
       <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-2">
-        <div className="text-muted">{rows.length} loaded</div>
+        <div className="text-muted">
+          {loading ? "Loading…" : `${items.length} shown • ${count} total`}
+        </div>
 
         <div className="d-flex align-items-center gap-2 flex-wrap">
           <Dropdown align="end">
@@ -512,7 +553,11 @@ export default function Projects() {
                 <>
                   <Dropdown.Header>Saved</Dropdown.Header>
                   {savedPresets.map((p) => (
-                    <Dropdown.Item key={p.key} onClick={() => applySavedPreset(p)}>
+                    <Dropdown.Item
+                      key={p.key}
+                      onClick={() => applySavedPreset(p)}
+                      style={{ paddingLeft: "1.25rem" }}
+                    >
                       <div className="d-flex align-items-center justify-content-between gap-2">
                         <span>{p.label}</span>
                         <Button
@@ -537,37 +582,46 @@ export default function Projects() {
 
               <Dropdown.Header>Built-in</Dropdown.Header>
               {BUILTIN_PRESETS.map((p) => (
-                <Dropdown.Item key={p.key} onClick={() => applyBuiltinPreset(p)}>
+                <Dropdown.Item
+                  key={p.key}
+                  onClick={() => applyBuiltinPreset(p)}
+                  style={{ paddingLeft: "1.25rem" }}
+                >
                   {p.label}
                 </Dropdown.Item>
               ))}
             </Dropdown.Menu>
           </Dropdown>
 
-          <Button
-            size="sm"
-            variant="outline-primary"
-            disabled={!hasAnyFilters}
-            onClick={openSavePresetModal}
-          >
+          <Button size="sm" variant="outline-primary" onClick={openSavePresetModal}>
             Save preset
           </Button>
 
-          <Button size="sm" variant="outline-secondary" onClick={clearFilters} disabled={!hasAnyFilters}>
+          <Button size="sm" variant="outline-secondary" onClick={clearAll} disabled={!hasAnyFilters}>
             Clear filters
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="d-flex gap-2 flex-wrap mb-2">
+      {/* Search + filters row */}
+      <div className="d-flex gap-2 flex-wrap mb-2 align-items-center">
+        {/* Free text search */}
+        <Form.Control
+          size="sm"
+          style={{ width: 260 }}
+          placeholder="Search projects…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+
         {/* Station */}
         <Form.Select
           size="sm"
-          style={{ width: 220 }}
+          style={{ width: 200 }}
           value={stationId}
           onChange={(e) => {
             setStationId(e.target.value);
+            setPage(1);
             setActivePresetLabel(null);
           }}
         >
@@ -582,10 +636,11 @@ export default function Projects() {
         {/* Stage */}
         <Form.Select
           size="sm"
-          style={{ width: 220 }}
+          style={{ width: 200 }}
           value={stageId}
           onChange={(e) => {
             setStageId(e.target.value);
+            setPage(1);
             setActivePresetLabel(null);
           }}
         >
@@ -597,13 +652,31 @@ export default function Projects() {
           ))}
         </Form.Select>
 
+        {/* State (completedness) */}
+        <Form.Select
+          size="sm"
+          style={{ width: 160 }}
+          value={isCompleted}
+          onChange={(e) => {
+            const v = e.target.value as "" | "true" | "false";
+            setIsCompleted(v);
+            setPage(1);
+            setActivePresetLabel(null);
+          }}
+        >
+          <option value="">Any state</option>
+          <option value="false">In Progress</option>
+          <option value="true">Completed</option>
+        </Form.Select>
+
         {/* Customer */}
         <Form.Select
           size="sm"
-          style={{ width: 240 }}
+          style={{ width: 220 }}
           value={customerId}
           onChange={(e) => {
             setCustomerId(e.target.value);
+            setPage(1);
             setActivePresetLabel(null);
           }}
         >
@@ -618,10 +691,11 @@ export default function Projects() {
         {/* Assigned */}
         <Form.Select
           size="sm"
-          style={{ width: 240 }}
+          style={{ width: 220 }}
           value={assignedToId}
           onChange={(e) => {
             setAssignedToId(e.target.value);
+            setPage(1);
             setActivePresetLabel(null);
           }}
         >
@@ -640,9 +714,28 @@ export default function Projects() {
           checked={vipOnly}
           onChange={(e) => {
             setVipOnly(e.target.checked);
+            setPage(1);
             setActivePresetLabel(null);
           }}
         />
+
+        {/* Page size */}
+        <Form.Select
+          size="sm"
+          style={{ width: 140 }}
+          value={String(pageSize)}
+          onChange={(e) => {
+            setPageSize(parsePageSize(e.target.value));
+            setPage(1);
+            setActivePresetLabel(null);
+          }}
+          title="Rows per page"
+        >
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </Form.Select>
       </div>
 
       {activePresetLabel && (
@@ -651,12 +744,11 @@ export default function Projects() {
         </div>
       )}
 
-      {/* Save Preset Modal */}
-      <Modal show={showSaveModal} onHide={closeSavePresetModal} centered>
+      {/* Save preset modal */}
+      <Modal show={showSaveModal} onHide={() => setShowSaveModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Save preset</Modal.Title>
         </Modal.Header>
-
         <Modal.Body>
           <Form.Label>Preset name</Form.Label>
           <Form.Control
@@ -665,7 +757,6 @@ export default function Projects() {
               setPresetName(e.target.value);
               if (presetNameErr) setPresetNameErr(null);
             }}
-            placeholder="e.g., VIP • Finishing • Jordan"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -674,17 +765,13 @@ export default function Projects() {
               }
             }}
           />
-
           {presetNameErr && <div className="text-danger mt-2">{presetNameErr}</div>}
-
           <div className="text-muted mt-3">
-            This saves your current filters (Station / Stage / State / Customer / Assigned To / VIP) on this
-            device.
+            Saves your current filters (Station / Stage / State / Customer / Assigned / VIP) on this device.
           </div>
         </Modal.Body>
-
         <Modal.Footer>
-          <Button variant="outline-secondary" onClick={closeSavePresetModal}>
+          <Button variant="outline-secondary" onClick={() => setShowSaveModal(false)}>
             Cancel
           </Button>
           <Button variant="primary" onClick={confirmSavePreset}>
@@ -704,144 +791,209 @@ export default function Projects() {
       {err && <div className="text-danger">{err}</div>}
 
       {!loading && !err && (
-        <Table striped hover responsive size="sm">
-          <thead>
-            <tr>
-              <th style={{ width: 72 }}>Photo</th>
-              <th>Name</th>
-              <th>Stage</th>
-              <th>Priority</th>
-              <th>Due</th>
-              <th>Station</th>
-              <th>Customer</th>
-              <th>Assigned</th>
-              <th style={{ width: 96 }}>Actions</th>
-            </tr>
-          </thead>
+        <>
+          <Table striped bordered hover responsive size="sm">
+            <thead>
+              <tr>
+                <th>
+                  <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => onSort("name")}>
+                    Name {orderingIcon(ordering, sortFields.name)}
+                  </Button>
+                </th>
 
-          <tbody>
-            {rows.map((p) => {
-              const c = p.customer ? customerById.get(Number(p.customer)) : null;
-              const isVip = c ? customerIsVip(c) : false;
+                <th>
+                  <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => onSort("stage")}>
+                    Stage {orderingIcon(ordering, sortFields.stage)}
+                  </Button>
+                </th>
 
-              const stageName = (p as any).current_stage_name ?? "—";
-              const stageIsCompleted = Boolean((p as any).is_completed);
-              const canLogSale = Boolean((p as any).can_log_sale);
+                <th>
+                  <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => onSort("priority")}>
+                    Priority {orderingIcon(ordering, sortFields.priority)}
+                  </Button>
+                </th>
 
-              return (
-                <tr key={p.id}>
-                  <td>
-                      {p.photo_url ? (
-                        <img
-                          src={p.photo_url}
-                          alt=""
-                          style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }}
-                        />
+                <th>
+                  <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => onSort("due")}>
+                    Due {orderingIcon(ordering, sortFields.due)}
+                  </Button>
+                </th>
+
+                <th>
+                  <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => onSort("station")}>
+                    Station {orderingIcon(ordering, sortFields.station)}
+                  </Button>
+                </th>
+
+                <th>
+                  <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => onSort("customer")}>
+                    Customer {orderingIcon(ordering, sortFields.customer)}
+                  </Button>
+                </th>
+
+                <th>
+                  <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => onSort("assigned")}>
+                    Assigned {orderingIcon(ordering, sortFields.assigned)}
+                  </Button>
+                </th>
+
+                <th style={{ width: 110 }}>Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {items.map((p) => {
+                const c = p.customer ? customerById.get(Number(p.customer)) : null;
+                const isVip = c ? customerIsVip(c) : false;
+
+                const stageName = (p as any).current_stage_name ?? "—";
+                const stageIsCompleted = Boolean((p as any).is_completed);
+                const canLogSale = Boolean((p as any).can_log_sale);
+
+                return (
+                  <tr key={p.id}>
+                    {/* Name (photo inline, bold name) */}
+                    <td>
+                      <div className="d-flex align-items-center gap-2">
+                        {p.photo_url ? (
+                          <img
+                            src={p.photo_url}
+                            alt=""
+                            style={{
+                              width: 34,
+                              height: 34,
+                              objectFit: "cover",
+                              borderRadius: 8,
+                              flex: "0 0 auto",
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: 8,
+                              background: "rgba(0,0,0,0.06)",
+                              flex: "0 0 auto",
+                            }}
+                            title="No photo"
+                          />
+                        )}
+
+                        <div className="min-w-0">
+                          <div className="fw-semibold">
+                            <Link to={`/projects/${p.id}`}>{p.name}</Link>
+                          </div>
+                          {p.reference_code ? <div className="text-muted">Ref: {p.reference_code}</div> : null}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <Badge bg={stageIsCompleted ? "success" : "primary"}>{stageName}</Badge>
+                    </td>
+
+                    <td>
+                      <Badge bg={priorityVariant(p.priority)}>{p.priority}</Badge>
+                    </td>
+
+                    <td>{formatDate(p.due_date)}</td>
+
+                    <td>
+                      {p.station ? (
+                        <Link to={`/stations/${p.station}`}>{p.station_name ?? `Station #${p.station}`}</Link>
                       ) : (
-                        <div
-                          style={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 8,
-                            background: "rgba(0,0,0,0.06)",
-                          }}
-                        />
+                        "—"
                       )}
                     </td>
 
-                  <td>
-                    <div className="fw-semibold">
-                      <Link to={`/projects/${p.id}`}>{p.name}</Link>
-                    </div>
-                    {p.reference_code ? <div className="text-muted">Ref: {p.reference_code}</div> : null}
-                  </td>
+                    <td>
+                      {p.customer ? (
+                        <>
+                          <Link to={`/customers/${p.customer}`}>{p.customer_name ?? `Customer #${p.customer}`}</Link>
+                          {isVip ? (
+                            <Badge bg="warning" text="dark" className="ms-2">
+                              VIP
+                            </Badge>
+                          ) : null}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
 
-                  <td>
-                    <Badge bg={stageIsCompleted ? "success" : "primary"}>{stageName}</Badge>
-                  </td>
+                    <td>
+                      {p.assigned_to ? (
+                        <Link to={`/employees/${p.assigned_to}`}>
+                          {p.assigned_to_name ?? `Employee #${p.assigned_to}`}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
 
-                  <td>
-                    <Badge bg={priorityVariant(p.priority)}>{p.priority}</Badge>
-                  </td>
+                    <td>
+                      <div className="d-flex gap-2">
+                        <Button
+                          size="sm"
+                          variant={canLogSale ? "success" : "outline-secondary"}
+                          disabled={!canLogSale}
+                          className="px-2"
+                          aria-label="Log sale"
+                          title={canLogSale ? "Log sale" : `Sale logging is disabled at this stage (${stageName}).`}
+                          onClick={() => alert("Log Sale is not implemented yet. (Gate is working ✅)")}
+                        >
+                          <i className="bi bi-currency-dollar" />
+                        </Button>
 
-                  <td>{formatDate(p.due_date)}</td>
+                        <Button
+                          size="sm"
+                          variant="outline-primary"
+                          className="px-2"
+                          aria-label="View project"
+                          title="View project"
+                          onClick={() => navigate(`/projects/${p.id}`)}
+                        >
+                          <i className="bi bi-eye" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
 
-                  <td>
-                    {p.station ? (
-                      <Link to={`/stations/${p.station}`}>
-                        {p.station_name ?? `Station #${p.station}`}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-
-                  <td>
-                    {p.customer ? (
-                      <>
-                        <Link to={`/customers/${p.customer}`}>{p.customer_name ?? `Customer #${p.customer}`}</Link>
-                        {isVip ? (
-                          <Badge bg="warning" text="dark" className="ms-2">
-                            VIP
-                          </Badge>
-                        ) : null}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-
-                  <td>
-                    {p.assigned_to ? (
-                      <Link to={`/employees/${p.assigned_to}`}>
-                        {p.assigned_to_name ?? `Employee #${p.assigned_to}`}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-
-                  <td>
-                    <div className="d-flex gap-2">
-                      <Button
-                        size="sm"
-                        variant={canLogSale ? "success" : "outline-secondary"}
-                        disabled={!canLogSale}
-                        className="px-2"
-                        aria-label="Log sale"
-                        title={canLogSale ? "Log sale" : `Sale logging is disabled at this stage (${stageName}).`}
-                        onClick={() => {
-                          alert("Log Sale is not implemented yet. (Gate is working ✅)");
-                        }}
-                      >
-                        <i className="bi bi-currency-dollar" />
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline-primary"
-                        className="px-2"
-                        aria-label="View project"
-                        title="View project"
-                        onClick={() => navigate(`/projects/${p.id}`)}
-                      >
-                        <i className="bi bi-eye" />
-                      </Button>
-                    </div>
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center text-muted">
+                    No projects found.
                   </td>
                 </tr>
-              );
-            })}
+              )}
+            </tbody>
+          </Table>
 
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={10} className="text-center text-muted">
-                  No projects found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </Table>
+          {/* Pagination controls */}
+          <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+            <div className="text-muted">
+              Page <strong>{page}</strong> of <strong>{pageCount}</strong>
+            </div>
+
+            <div className="d-flex align-items-center gap-2">
+              <Button size="sm" variant="outline-secondary" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
+                ← Prev
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline-secondary"
+                disabled={page >= pageCount}
+                onClick={() => goToPage(page + 1)}
+              >
+                Next →
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </>
   );

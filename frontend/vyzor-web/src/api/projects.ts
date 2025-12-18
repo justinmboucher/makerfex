@@ -2,12 +2,8 @@
 // ============================================================================
 // Makerfex Projects API (Frontend)
 // ----------------------------------------------------------------------------
-// Purpose:
-// - Single source of truth for calling the Projects backend endpoints.
-// - Handles DRF list responses whether paginated ({results,...}) or plain arrays.
-// ----------------------------------------------------------------------------
-// Important:
-// - Backend returns FK fields (shop/customer/workflow/current_stage/etc) as IDs.
+// - Supports DRF pagination ({count,next,previous,results})
+// - Supports array responses (non-paginated) as fallback
 // ============================================================================
 
 import axiosClient from "./axiosClient";
@@ -37,10 +33,8 @@ export type Project = {
   priority: "low" | "normal" | "high" | "rush";
   status: "active" | "on_hold" | "completed" | "cancelled";
 
-  // stage-truth completion (backend annotation)
+  // backend-derived
   is_completed?: boolean;
-
-  // sale gate (backend derived)
   can_log_sale?: boolean;
 
   start_date: string | null;
@@ -57,6 +51,7 @@ export type Project = {
   actual_hours: string | null;
 
   is_archived: boolean;
+
   created_at: string;
   updated_at: string;
 };
