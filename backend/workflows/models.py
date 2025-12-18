@@ -64,12 +64,15 @@ class WorkflowStage(TimeStampedModel):
         help_text="If true, this represents a terminal stage (e.g. 'Completed').",
     )
 
+    allows_sale_log = models.BooleanField(default=False)
+
     wip_limit = models.PositiveIntegerField(
         default=0,
         help_text="Optional WIP limit for this stage (0 = no limit).",
     )
 
     is_active = models.BooleanField(default=True)
+
 
     class Meta:
         unique_together = ("workflow", "name")

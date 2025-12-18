@@ -14,6 +14,7 @@ class WorkflowStageSerializer(serializers.ModelSerializer):
             "order",
             "is_initial",
             "is_final",
+            "allows_sale_log",
             "wip_limit",
             "is_active",
             "created_at",

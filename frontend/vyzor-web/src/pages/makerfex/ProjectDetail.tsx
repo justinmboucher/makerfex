@@ -107,6 +107,11 @@ export default function ProjectDetail() {
 
   const customerId = (data as any)?.customer as number | null | undefined;
   const customerName = (data as any)?.customer_name as string | null | undefined;
+  const canLogSale = Boolean((data as any)?.can_log_sale);
+  const stageName =
+    (data as any)?.current_stage_name ||
+    (data as any)?.current_stage ||
+    "—";
 
   return (
     <>
@@ -138,11 +143,29 @@ export default function ProjectDetail() {
                     ) : null}
                   </div>
 
-                  <div className="d-flex gap-2">
+                  <div className="d-flex gap-2 align-items-center flex-wrap">
                     <Badge bg="secondary">{data.status}</Badge>
+
                     {(data as any).priority ? (
                       <Badge bg="info">{(data as any).priority}</Badge>
                     ) : null}
+
+                    <Button
+                      size="sm"
+                      variant={canLogSale ? "success" : "outline-secondary"}
+                      disabled={!canLogSale}
+                      title={
+                        canLogSale
+                          ? "Ready to log sale for this project"
+                          : `Sale logging is disabled at this stage (${stageName}).`
+                      }
+                      onClick={() => {
+                        // Soft action only: wiring point for Sales later
+                        alert("Log Sale is not implemented yet. (Gate is working ✅)");
+                      }}
+                    >
+                      Log for Sale
+                    </Button>
                   </div>
                 </div>
 

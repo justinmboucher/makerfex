@@ -12,6 +12,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     station_name = serializers.SerializerMethodField()
     workflow_name = serializers.SerializerMethodField()
     current_stage_name = serializers.SerializerMethodField()
+    can_log_sale = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -40,6 +41,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "station_name",
             "workflow_name",
             "current_stage_name",
+            "can_log_sale",
             "estimated_hours",
             "actual_hours",
             "is_archived",
@@ -57,6 +59,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "station_name",
             "workflow_name",
             "current_stage_name",
+            "can_log_sale",
         ]
 
     def _employee_display_name(self, emp):
@@ -111,3 +114,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_current_stage_name(self, obj):
         return getattr(obj.current_stage, "name", None) if getattr(obj, "current_stage", None) else None
+    
+    def get_can_log_sale(self, obj):
+        st = getattr(obj, "current_stage", None)
+        return bool(getattr(st, "allows_sale_log", False)) if st else False
