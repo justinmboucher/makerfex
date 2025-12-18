@@ -770,9 +770,36 @@ export default function Projects() {
                     </td>
 
                     <td className="text-end">
-                      <Button variant="outline-primary" size="sm" onClick={() => navigate(`/projects/${p.id}`)}>
-                        View
-                      </Button>
+                      <div className="d-flex gap-2 justify-content-end">
+                        <Button
+                          variant={Boolean((p as any).can_log_sale) ? "success" : "outline-secondary"}
+                          size="sm"
+                          className="px-2"
+                          disabled={!Boolean((p as any).can_log_sale)}
+                          aria-label="Log sale"
+                          title={
+                            Boolean((p as any).can_log_sale)
+                              ? "Log sale"
+                              : "Sale logging is not enabled at this stage."
+                          }
+                          onClick={() => {
+                            alert("Log Sale is not implemented yet. (Gate is working ✅)");
+                          }}
+                        >
+                          <i className="bi bi-currency-dollar" />
+                        </Button>
+
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          className="px-2"
+                          aria-label="View project"
+                          title="View project"
+                          onClick={() => navigate(`/projects/${p.id}`)}
+                        >
+                          <i className="bi bi-eye" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );

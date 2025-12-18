@@ -154,17 +154,15 @@ export default function ProjectDetail() {
                       size="sm"
                       variant={canLogSale ? "success" : "outline-secondary"}
                       disabled={!canLogSale}
+                      aria-label="Log sale"
                       title={
                         canLogSale
-                          ? "Ready to log sale for this project"
+                          ? "Log sale"
                           : `Sale logging is disabled at this stage (${stageName}).`
                       }
-                      onClick={() => {
-                        // Soft action only: wiring point for Sales later
-                        alert("Log Sale is not implemented yet. (Gate is working ✅)");
-                      }}
+                      onClick={() => alert("Log Sale is not implemented yet. (Gate is working ✅)")}
                     >
-                      Log for Sale
+                      <i className="bi bi-currency-dollar" />
                     </Button>
                   </div>
                 </div>
