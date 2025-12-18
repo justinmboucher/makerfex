@@ -1,12 +1,4 @@
 // src/api/customers.ts
-// ============================================================================
-// Customers API
-// ----------------------------------------------------------------------------
-// Typed API access for Customer resources.
-// All requests are automatically shop-scoped by the backend using the
-// authenticated user -> employee -> shop relationship.
-// ============================================================================
-
 import axiosClient from "./axiosClient";
 
 export type Customer = {
@@ -27,8 +19,15 @@ export type PaginatedCustomers = {
   results: Customer[];
 };
 
-export async function listCustomers(): Promise<PaginatedCustomers> {
-  const res = await axiosClient.get("/customers/");
+export type ListCustomersParams = {
+  q?: string;
+  ordering?: string; // e.g. "last_name" or "-created_at"
+  page?: number;
+  page_size?: number;
+};
+
+export async function listCustomers(params: ListCustomersParams = {}): Promise<PaginatedCustomers> {
+  const res = await axiosClient.get("/customers/", { params });
   return res.data;
 }
 

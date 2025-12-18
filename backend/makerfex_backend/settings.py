@@ -153,7 +153,7 @@ REST_FRAMEWORK = {
         "makerfex_backend.filters.QueryParamSearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_PAGINATION_CLASS": "config.pagination.MakerfexPagination",
     "PAGE_SIZE": 25,
 }
 
