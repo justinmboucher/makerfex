@@ -1,5 +1,7 @@
 # backend/accounts/views.py
 
+from django.shortcuts import get_object_or_404
+from rest_framework.decorators import action
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -30,11 +32,25 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Employee.objects.none()
         return Employee.objects.filter(shop=shop).order_by("first_name", "last_name", "id")
 
+    @action(detail=False, methods=["get"], url_path="me")
+    def me(self, request):
+        """
+        Return the Employee record for the currently authenticated user.
+        GET /api/accounts/employees/me/
+        """
+        employee = get_object_or_404(
+            self.get_queryset().select_related("user", "shop"),
+            user=request.user,
+        )
+        serializer = self.get_serializer(employee)
+        return Response(serializer.data)
+
     def list(self, request, *args, **kwargs):
         """
         Optional: /api/accounts/employees/?with_counts=1
         Adds:
           - assigned_project_count (projects assigned to employee, not archived, shop-scoped)
+          - overdue_project_count
         """
         qs = self.get_queryset()
         response = super().list(request, *args, **kwargs)
@@ -47,18 +63,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         if not shop:
             return response
 
-        # One query: count assigned projects per employee (shop-scoped)
-        counts = (
-            Project.objects
-            .filter(shop=shop, is_archived=False, assigned_to_id__isnull=False)
-            .values("assigned_to_id")
-            .annotate(c=Count("id"))
-        )
-        
         today = timezone.localdate()
-
-        # Treat these as "not overdue" statuses. Adjust to match your actual choices if needed.
-        done_statuses = ["done", "completed", "complete", "cancelled", "canceled"]
 
         assigned_counts = (
             Project.objects
@@ -68,8 +73,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         )
         assigned_map = {row["assigned_to_id"]: row["c"] for row in assigned_counts}
 
-        # Overdue = due_date < today AND due_date exists AND not archived AND assigned
-        # Exclude completed-ish statuses (case-insensitive)
         not_done_q = ~(
             Q(status__iexact="done") |
             Q(status__iexact="completed") |
@@ -103,9 +106,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             eid = item.get("id")
             item["assigned_project_count"] = int(assigned_map.get(eid, 0))
             item["overdue_project_count"] = int(overdue_map.get(eid, 0))
-            
-        return response
 
+        return response
 
 class StationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]

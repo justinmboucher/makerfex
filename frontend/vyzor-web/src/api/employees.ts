@@ -2,7 +2,7 @@
 // ============================================================================
 // Makerfex Employees API (Frontend)
 // ----------------------------------------------------------------------------
-// Read-only usage for now (list + detail).
+// Read-only usage for now (list + detail + "me").
 // ============================================================================
 
 import axiosClient from "./axiosClient";
@@ -38,6 +38,9 @@ function unwrapList<T>(data: any): { items: T[]; count?: number } {
 
 const BASE = "accounts/employees/";
 
+// Cache the entire "me" employee object (small + useful)
+const ME_CACHE_KEY = "mf_employee_me";
+
 export async function listEmployees(params?: Record<string, any>) {
   const res = await axiosClient.get<DRFPaginated<Employee> | Employee[]>(BASE, { params });
   return unwrapList<Employee>(res.data);
@@ -46,4 +49,30 @@ export async function listEmployees(params?: Record<string, any>) {
 export async function getEmployee(id: number): Promise<Employee> {
   const res = await axiosClient.get<Employee>(`${BASE}${id}/`);
   return res.data;
+}
+
+export function clearMyEmployeeCache() {
+  localStorage.removeItem(ME_CACHE_KEY);
+}
+
+export async function getMyEmployee(opts?: { forceRefresh?: boolean }): Promise<Employee> {
+  const forceRefresh = !!opts?.forceRefresh;
+
+  if (!forceRefresh) {
+    const cached = localStorage.getItem(ME_CACHE_KEY);
+    if (cached) {
+      try {
+        return JSON.parse(cached) as Employee;
+      } catch {
+        localStorage.removeItem(ME_CACHE_KEY);
+      }
+    }
+  }
+
+  // Uses same BASE style as everything else
+  const res = await axiosClient.get<Employee>(`${BASE}me/`);
+  const employee = res.data;
+
+  localStorage.setItem(ME_CACHE_KEY, JSON.stringify(employee));
+  return employee;
 }
