@@ -197,30 +197,46 @@ class Command(BaseCommand):
             created_by=owner_employee,
         )
 
+        # NOTE:
+        # - is_final=True is the workflow terminus
+        # - allows_sale_log=True is the business gate for 'Log for Sale'
         stage_defs = [
-            ("Inquiry", 10, True, False),
-            ("Design", 20, False, False),
-            ("Cut & Mill", 30, False, False),
-            ("Assembly", 40, False, False),
-            ("Finishing", 50, False, False),
-            ("Ready to Ship", 60, False, False),
-            ("Completed", 70, False, True),
+            # name, order, is_initial, is_final, allows_sale_log
+            ("Inquiry", 10, True, False, False),
+            ("Design", 20, False, False, False),
+            ("Cut & Mill", 30, False, False, False),
+            ("Assembly", 40, False, False, False),
+            ("Finishing", 50, False, False, False),
+            ("Ready to Ship", 60, False, False, True),   # sellable gate example
+            ("Completed", 70, False, True, True),        # also sellable in demo (shop can change)
         ]
 
         stage_map = {}
-        for name, order, is_initial, is_final in stage_defs:
+        for name, order, is_initial, is_final, allows_sale_log in stage_defs:
             stage = WorkflowStage.objects.create(
                 workflow=workflow,
                 name=name,
                 order=order,
                 is_initial=is_initial,
                 is_final=is_final,
+                allows_sale_log=allows_sale_log,
                 wip_limit=0,
                 is_active=True,
             )
             stage_map[name] = stage
 
         self.stdout.write(self.style.SUCCESS("✓ Workflow and stages created."))
+
+        # Map stages to stations to support Project.station (one station at a time)
+        stage_station_map = {
+            "Inquiry": None,
+            "Design": assembly_bench,
+            "Cut & Mill": table_saw,          # tasks may vary (table saw vs CNC); project station stays single
+            "Assembly": assembly_bench,
+            "Finishing": finishing_booth,
+            "Ready to Ship": packing_station,
+            "Completed": packing_station,     # demo assumption: completed after packing/shipping handoff
+        }
 
         # -----------------------------
         # 5) Customers (rolling year)
@@ -403,6 +419,9 @@ class Command(BaseCommand):
 
             project_name = f"{template.name} #{1000 + i}"
 
+            # Pick a single current station based on stage (project-at-one-station truth)
+            station = stage_station_map.get(current_stage.name) if current_stage else None
+
             project = Project.objects.create(
                 shop=shop,
                 customer=customer,
@@ -411,6 +430,7 @@ class Command(BaseCommand):
                 description=f"Demo project based on {template.name}.",
                 workflow=workflow,
                 current_stage=current_stage,
+                station=station,
                 priority=priority,
                 status=status,
                 start_date=start_date,
@@ -739,6 +759,7 @@ class Command(BaseCommand):
                     payload={
                         "project_id": project.id,
                         "status": project.status,
+                        "current_stage": project.current_stage_id,
                     },
                 )
                 events.append(ev)
@@ -799,7 +820,6 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("✓ Assistant profile, session, and messages created."))
         self.stdout.write(self.style.SUCCESS("Demo Makerfex data reset + seeding complete. 🎉"))
-
 
 
 def datetime_from_date(d: date):
