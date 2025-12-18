@@ -2,13 +2,14 @@
 // ============================================================================
 // Makerfex Projects Page (Vyzor Shell)
 // ----------------------------------------------------------------------------
-// Read-only Projects list with URL-persisted filters + presets:
+// Read-only Projects list with URL-persisted filters + presets.
 //
 // Backend filters:
 // - ?station=
 // - ?customer=
 // - ?assigned_to=
-// - ?current_stage=   (NEW)
+// - ?current_stage=
+// - ?is_completed=true|false  (NEW; stage-truth completion)
 //
 // Frontend-only filter (persisted in URL for shareability):
 // - ?vip=1 (filters projects to VIP customers client-side)
@@ -17,13 +18,17 @@
 // - Built-in:
 //   • Assigned to Me (uses /api/accounts/employees/me/ and caches employee)
 //   • VIP Customers (vip=1)
-// - User-saved presets store CURRENT filter IDs + vip flag (localStorage)
+//   • In Progress (is_completed=false)
+//   • Completed (is_completed=true)
+// - User-saved presets store CURRENT filter IDs + vip + is_completed (localStorage)
 //
 // UI:
 // - Shows “Preset applied: …” line under filters when a preset was applied
 // - Clears that line when user changes filters manually or clears filters
 // - Save preset uses a React-Bootstrap Modal
 // - Shows VIP pill next to customer name for VIP customers only
+// - Stage is primary indicator; status is secondary
+// - Uses Bootstrap Icons for actions (log sale + view)
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -32,11 +37,9 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { listProjects } from "../../api/projects";
 import type { Project } from "../../api/projects";
-
 import { listStations, type Station } from "../../api/stations";
 import { listEmployees, type Employee, getMyEmployee } from "../../api/employees";
 import { listCustomers, type Customer } from "../../api/customers";
-
 import { listStages, type WorkflowStage } from "../../api/workflows";
 
 /** Unwraps either {items}, {results}, an array, or returns [] */
@@ -48,24 +51,9 @@ function unwrapItems<T>(data: any): T[] {
   return [];
 }
 
-function formatDate(d: string | null) {
+function formatDate(d: string | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString();
-}
-
-function statusVariant(status: Project["status"]) {
-  switch (status) {
-    case "active":
-      return "success";
-    case "on_hold":
-      return "warning";
-    case "completed":
-      return "secondary";
-    case "cancelled":
-      return "danger";
-    default:
-      return "light";
-  }
 }
 
 function priorityVariant(priority: Project["priority"]) {
@@ -94,7 +82,7 @@ function normalize(s: string) {
 }
 
 type BuiltinPreset = {
-  key: "all" | "assigned_to_me" | "vip_customers";
+  key: "all" | "assigned_to_me" | "vip_customers" | "in_progress" | "completed";
   label: string;
 };
 
@@ -104,6 +92,7 @@ type PresetParams = {
   assigned_to?: string;
   current_stage?: string;
   vip?: "1";
+  is_completed?: "true" | "false";
 };
 
 type SavedPreset = {
@@ -118,6 +107,8 @@ const BUILTIN_PRESETS: BuiltinPreset[] = [
   { key: "all", label: "All projects" },
   { key: "assigned_to_me", label: "Assigned to Me" },
   { key: "vip_customers", label: "VIP Customers" },
+  { key: "in_progress", label: "In Progress" },
+  { key: "completed", label: "Completed" },
 ];
 
 function loadSavedPresets(): SavedPreset[] {
@@ -158,6 +149,12 @@ export default function Projects() {
   const [customerId, setCustomerId] = useState(() => cleanIdParam(searchParams.get("customer")));
   const [assignedToId, setAssignedToId] = useState(() => cleanIdParam(searchParams.get("assigned_to")));
   const [stageId, setStageId] = useState(() => cleanIdParam(searchParams.get("current_stage")));
+
+  // Backend completion filter (stage-truth)
+  const [isCompleted, setIsCompleted] = useState<"" | "true" | "false">(() => {
+    const v = searchParams.get("is_completed");
+    return v === "true" || v === "false" ? v : "";
+  });
 
   // Frontend-only filter (VIP)
   const [vipOnly, setVipOnly] = useState(() => searchParams.get("vip") === "1");
@@ -204,30 +201,33 @@ export default function Projects() {
     return !!(c?.is_vip ?? c?.vip ?? c?.isVIP ?? false);
   };
 
-  const hasAnyFilters = !!stationId || !!customerId || !!assignedToId || !!stageId || vipOnly;
+  const hasAnyFilters =
+    !!stationId || !!customerId || !!assignedToId || !!stageId || vipOnly || !!isCompleted;
 
   function buildSuggestedPresetName() {
     const parts: string[] = [];
 
+    if (isCompleted === "true") parts.push("Completed");
+    if (isCompleted === "false") parts.push("In Progress");
     if (vipOnly) parts.push("VIP");
 
     if (stationId) {
-      const s = stations.find((x: any) => String(x.id) === String(stationId));
+      const s = (stations as any[]).find((x) => String(x.id) === String(stationId));
       parts.push(s ? stationLabel(s) : `Station ${stationId}`);
     }
 
     if (stageId) {
-      const st = stages.find((x: any) => String(x.id) === String(stageId));
+      const st = (stages as any[]).find((x) => String(x.id) === String(stageId));
       parts.push(st ? stageLabel(st) : `Stage ${stageId}`);
     }
 
     if (customerId) {
-      const c: any = customers.find((x: any) => String(x.id) === String(customerId));
+      const c: any = (customers as any[]).find((x) => String(x.id) === String(customerId));
       parts.push(c ? customerLabel(c) : `Customer ${customerId}`);
     }
 
     if (assignedToId) {
-      const e: any = employees.find((x: any) => String(x.id) === String(assignedToId));
+      const e: any = (employees as any[]).find((x) => String(x.id) === String(assignedToId));
       parts.push(e ? employeeLabel(e) : `Employee ${assignedToId}`);
     }
 
@@ -241,12 +241,17 @@ export default function Projects() {
     const nextAssigned = cleanIdParam(searchParams.get("assigned_to"));
     const nextStage = cleanIdParam(searchParams.get("current_stage"));
     const nextVip = searchParams.get("vip") === "1";
+    const nextIsCompleted = (() => {
+      const v = searchParams.get("is_completed");
+      return v === "true" || v === "false" ? (v as "true" | "false") : "";
+    })();
 
     if (nextStation !== stationId) setStationId(nextStation);
     if (nextCustomer !== customerId) setCustomerId(nextCustomer);
     if (nextAssigned !== assignedToId) setAssignedToId(nextAssigned);
     if (nextStage !== stageId) setStageId(nextStage);
     if (nextVip !== vipOnly) setVipOnly(nextVip);
+    if (nextIsCompleted !== isCompleted) setIsCompleted(nextIsCompleted);
 
     didInitFromUrl.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -301,16 +306,14 @@ export default function Projects() {
     setOrDelete("assigned_to", assignedToId);
     setOrDelete("current_stage", stageId);
     setOrDelete("vip", vipOnly ? "1" : "");
+    setOrDelete("is_completed", isCompleted);
 
     const currentStr = searchParams.toString();
     const nextStr = next.toString();
 
-    if (currentStr !== nextStr) {
-      setSearchParams(next, { replace: true });
-    }
-
+    if (currentStr !== nextStr) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stationId, customerId, assignedToId, stageId, vipOnly]);
+  }, [stationId, customerId, assignedToId, stageId, vipOnly, isCompleted]);
 
   // Fetch projects whenever backend filters change
   useEffect(() => {
@@ -326,6 +329,7 @@ export default function Projects() {
         if (customerId) params.customer = Number(customerId);
         if (assignedToId) params.assigned_to = Number(assignedToId);
         if (stageId) params.current_stage = Number(stageId);
+        if (isCompleted) params.is_completed = isCompleted;
 
         const { items } = await listProjects(params);
 
@@ -343,7 +347,7 @@ export default function Projects() {
     return () => {
       alive = false;
     };
-  }, [stationId, customerId, assignedToId, stageId]);
+  }, [stationId, customerId, assignedToId, stageId, isCompleted]);
 
   // Customer lookup for VIP pill and VIP-only filter
   const customerById = useMemo(() => {
@@ -356,6 +360,7 @@ export default function Projects() {
 
   const rows = useMemo(() => {
     if (!vipOnly) return items;
+
     return items.filter((p) => {
       if (!p.customer) return false;
       const c = customerById.get(Number(p.customer));
@@ -368,6 +373,7 @@ export default function Projects() {
     setCustomerId("");
     setAssignedToId("");
     setStageId("");
+    setIsCompleted("");
     setVipOnly(false);
 
     setSearchParams({}, { replace: true });
@@ -376,11 +382,13 @@ export default function Projects() {
 
   function applyResolvedParams(label: string, resolved: PresetParams) {
     const next = new URLSearchParams();
+
     if (resolved.station) next.set("station", resolved.station);
     if (resolved.customer) next.set("customer", resolved.customer);
     if (resolved.assigned_to) next.set("assigned_to", resolved.assigned_to);
     if (resolved.current_stage) next.set("current_stage", resolved.current_stage);
     if (resolved.vip) next.set("vip", resolved.vip);
+    if (resolved.is_completed) next.set("is_completed", resolved.is_completed);
 
     setSearchParams(next, { replace: true });
     setActivePresetLabel(label);
@@ -394,6 +402,16 @@ export default function Projects() {
 
     if (preset.key === "vip_customers") {
       applyResolvedParams(preset.label, { vip: "1" });
+      return;
+    }
+
+    if (preset.key === "in_progress") {
+      applyResolvedParams(preset.label, { is_completed: "false" });
+      return;
+    }
+
+    if (preset.key === "completed") {
+      applyResolvedParams(preset.label, { is_completed: "true" });
       return;
     }
 
@@ -454,12 +472,14 @@ export default function Projects() {
         assigned_to: assignedToId || undefined,
         current_stage: stageId || undefined,
         vip: vipOnly ? "1" : undefined,
+        is_completed: isCompleted || undefined,
       },
     };
 
     const next = [newPreset, ...savedPresets].slice(0, 20);
     setSavedPresets(next);
     persistSavedPresets(next);
+
     setActivePresetLabel(label);
     setShowSaveModal(false);
   }
@@ -475,131 +495,40 @@ export default function Projects() {
   }
 
   return (
-    <div>
-      <h3 className="mb-1">Makerfex Projects</h3>
+    <>
+      <h3 className="mb-3">Makerfex Projects</h3>
 
-      <div className="mb-3 text-muted">{rows.length} loaded</div>
+      <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-2">
+        <div className="text-muted">{rows.length} loaded</div>
 
-      <div className="d-flex flex-wrap gap-2 align-items-end mb-2">
-        {/* Station */}
-        <div style={{ minWidth: 220 }}>
-          <Form.Label className="mb-1">Station</Form.Label>
-          <Form.Select
-            value={stationId}
-            onChange={(e) => {
-              setStationId(e.target.value);
-              setActivePresetLabel(null);
-            }}
-          >
-            <option value="">All stations</option>
-            {stations.map((s: any) => (
-              <option key={s.id} value={String(s.id)}>
-                {stationLabel(s)}
-              </option>
-            ))}
-          </Form.Select>
-        </div>
-
-        {/* Stage */}
-        <div style={{ minWidth: 220 }}>
-          <Form.Label className="mb-1">Stage</Form.Label>
-          <Form.Select
-            value={stageId}
-            onChange={(e) => {
-              setStageId(e.target.value);
-              setActivePresetLabel(null);
-            }}
-          >
-            <option value="">All stages</option>
-            {stages.map((st: any) => (
-              <option key={st.id} value={String(st.id)}>
-                {stageLabel(st)}
-              </option>
-            ))}
-          </Form.Select>
-        </div>
-
-        {/* Customer */}
-        <div style={{ minWidth: 220 }}>
-          <Form.Label className="mb-1">Customer</Form.Label>
-          <Form.Select
-            value={customerId}
-            onChange={(e) => {
-              setCustomerId(e.target.value);
-              setActivePresetLabel(null);
-            }}
-          >
-            <option value="">All customers</option>
-            {customers.map((c: any) => (
-              <option key={c.id} value={String(c.id)}>
-                {customerLabel(c)}
-              </option>
-            ))}
-          </Form.Select>
-        </div>
-
-        {/* Assigned */}
-        <div style={{ minWidth: 220 }}>
-          <Form.Label className="mb-1">Assigned To</Form.Label>
-          <Form.Select
-            value={assignedToId}
-            onChange={(e) => {
-              setAssignedToId(e.target.value);
-              setActivePresetLabel(null);
-            }}
-          >
-            <option value="">Anyone</option>
-            {employees.map((e: any) => (
-              <option key={e.id} value={String(e.id)}>
-                {employeeLabel(e)}
-              </option>
-            ))}
-          </Form.Select>
-        </div>
-
-        {/* VIP */}
-        <div className="d-flex flex-column" style={{ minWidth: 120 }}>
-          <Form.Label className="mb-1">VIP</Form.Label>
-          <Form.Check
-            type="checkbox"
-            label="VIP only"
-            checked={vipOnly}
-            onChange={(e) => {
-              setVipOnly(e.target.checked);
-              setActivePresetLabel(null);
-            }}
-          />
-        </div>
-
-        {/* Presets */}
-        <div className="ms-auto d-flex flex-wrap gap-2 align-items-end">
-          <Dropdown>
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <Dropdown align="end">
             <Dropdown.Toggle variant="outline-secondary" size="sm">
               Presets
             </Dropdown.Toggle>
+
             <Dropdown.Menu style={{ minWidth: 280 }}>
               {savedPresets.length > 0 && (
                 <>
                   <Dropdown.Header>Saved</Dropdown.Header>
                   {savedPresets.map((p) => (
-                    <Dropdown.Item
-                      key={p.key}
-                      className="d-flex align-items-center gap-2"
-                      onClick={() => applySavedPreset(p)}
-                    >
-                      <span style={{ flex: 1 }}>{p.label}</span>
-                      <Button
-                        variant="outline-danger"
-                        size="sm"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          deleteSavedPreset(p.key);
-                        }}
-                        title="Delete preset"
-                      >
-                        ✕
-                      </Button>
+                    <Dropdown.Item key={p.key} onClick={() => applySavedPreset(p)}>
+                      <div className="d-flex align-items-center justify-content-between gap-2">
+                        <span>{p.label}</span>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="p-0 text-danger"
+                          title="Delete preset"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            deleteSavedPreset(p.key);
+                          }}
+                        >
+                          ✕
+                        </Button>
+                      </div>
                     </Dropdown.Item>
                   ))}
                   <Dropdown.Divider />
@@ -615,18 +544,109 @@ export default function Projects() {
             </Dropdown.Menu>
           </Dropdown>
 
-          <Button variant="outline-primary" size="sm" disabled={!hasAnyFilters} onClick={openSavePresetModal}>
+          <Button
+            size="sm"
+            variant="outline-primary"
+            disabled={!hasAnyFilters}
+            onClick={openSavePresetModal}
+          >
             Save preset
           </Button>
 
-          <Button variant="outline-secondary" size="sm" disabled={!hasAnyFilters} onClick={clearFilters}>
+          <Button size="sm" variant="outline-secondary" onClick={clearFilters} disabled={!hasAnyFilters}>
             Clear filters
           </Button>
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="d-flex gap-2 flex-wrap mb-2">
+        {/* Station */}
+        <Form.Select
+          size="sm"
+          style={{ width: 220 }}
+          value={stationId}
+          onChange={(e) => {
+            setStationId(e.target.value);
+            setActivePresetLabel(null);
+          }}
+        >
+          <option value="">All stations</option>
+          {stations.map((s: any) => (
+            <option key={s.id} value={String(s.id)}>
+              {stationLabel(s)}
+            </option>
+          ))}
+        </Form.Select>
+
+        {/* Stage */}
+        <Form.Select
+          size="sm"
+          style={{ width: 220 }}
+          value={stageId}
+          onChange={(e) => {
+            setStageId(e.target.value);
+            setActivePresetLabel(null);
+          }}
+        >
+          <option value="">All stages</option>
+          {stages.map((st: any) => (
+            <option key={st.id} value={String(st.id)}>
+              {stageLabel(st)}
+            </option>
+          ))}
+        </Form.Select>
+
+        {/* Customer */}
+        <Form.Select
+          size="sm"
+          style={{ width: 240 }}
+          value={customerId}
+          onChange={(e) => {
+            setCustomerId(e.target.value);
+            setActivePresetLabel(null);
+          }}
+        >
+          <option value="">All customers</option>
+          {customers.map((c: any) => (
+            <option key={c.id} value={String(c.id)}>
+              {customerLabel(c)}
+            </option>
+          ))}
+        </Form.Select>
+
+        {/* Assigned */}
+        <Form.Select
+          size="sm"
+          style={{ width: 240 }}
+          value={assignedToId}
+          onChange={(e) => {
+            setAssignedToId(e.target.value);
+            setActivePresetLabel(null);
+          }}
+        >
+          <option value="">Anyone</option>
+          {employees.map((e: any) => (
+            <option key={e.id} value={String(e.id)}>
+              {employeeLabel(e)}
+            </option>
+          ))}
+        </Form.Select>
+
+        {/* VIP */}
+        <Form.Check
+          type="checkbox"
+          label="VIP"
+          checked={vipOnly}
+          onChange={(e) => {
+            setVipOnly(e.target.checked);
+            setActivePresetLabel(null);
+          }}
+        />
+      </div>
+
       {activePresetLabel && (
-        <div className="mb-3 text-muted">
+        <div className="text-muted mb-3">
           Preset applied: <strong>{activePresetLabel}</strong>
         </div>
       )}
@@ -636,6 +656,7 @@ export default function Projects() {
         <Modal.Header closeButton>
           <Modal.Title>Save preset</Modal.Title>
         </Modal.Header>
+
         <Modal.Body>
           <Form.Label>Preset name</Form.Label>
           <Form.Control
@@ -653,13 +674,17 @@ export default function Projects() {
               }
             }}
           />
+
           {presetNameErr && <div className="text-danger mt-2">{presetNameErr}</div>}
-          <div className="text-muted mt-3" style={{ fontSize: 13 }}>
-            This saves your current filters (Station / Stage / Customer / Assigned To / VIP) on this device.
+
+          <div className="text-muted mt-3">
+            This saves your current filters (Station / Stage / State / Customer / Assigned To / VIP) on this
+            device.
           </div>
         </Modal.Body>
+
         <Modal.Footer>
-          <Button variant="secondary" onClick={closeSavePresetModal}>
+          <Button variant="outline-secondary" onClick={closeSavePresetModal}>
             Cancel
           </Button>
           <Button variant="primary" onClick={confirmSavePreset}>
@@ -668,39 +693,44 @@ export default function Projects() {
         </Modal.Footer>
       </Modal>
 
+      {/* Results */}
       {loading && (
-        <div className="d-flex align-items-center gap-2 text-muted mt-3">
+        <div className="d-flex align-items-center gap-2">
           <Spinner animation="border" size="sm" />
-          Loading projects…
+          <span>Loading projects…</span>
         </div>
       )}
 
-      {err && <div className="text-danger mt-3">{err}</div>}
+      {err && <div className="text-danger">{err}</div>}
 
       {!loading && !err && (
-        <div className="mt-3">
-          <Table hover responsive>
-            <thead>
-              <tr>
-                <th style={{ width: 72 }}>Photo</th>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Priority</th>
-                <th>Due</th>
-                <th>Station</th>
-                <th>Customer</th>
-                <th>Assigned</th>
-                <th style={{ width: 92 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => {
-                const c = p.customer ? customerById.get(Number(p.customer)) : null;
-                const isVip = c ? customerIsVip(c) : false;
+        <Table striped hover responsive size="sm">
+          <thead>
+            <tr>
+              <th style={{ width: 72 }}>Photo</th>
+              <th>Name</th>
+              <th>Stage</th>
+              <th>Priority</th>
+              <th>Due</th>
+              <th>Station</th>
+              <th>Customer</th>
+              <th>Assigned</th>
+              <th style={{ width: 96 }}>Actions</th>
+            </tr>
+          </thead>
 
-                return (
-                  <tr key={p.id}>
-                    <td>
+          <tbody>
+            {rows.map((p) => {
+              const c = p.customer ? customerById.get(Number(p.customer)) : null;
+              const isVip = c ? customerIsVip(c) : false;
+
+              const stageName = (p as any).current_stage_name ?? "—";
+              const stageIsCompleted = Boolean((p as any).is_completed);
+              const canLogSale = Boolean((p as any).can_log_sale);
+
+              return (
+                <tr key={p.id}>
+                  <td>
                       {p.photo_url ? (
                         <img
                           src={p.photo_url}
@@ -719,103 +749,100 @@ export default function Projects() {
                       )}
                     </td>
 
-                    <td>
-                      <div className="d-flex flex-column">
-                        <Link to={`/projects/${p.id}`} style={{ textDecoration: "none" }}>
-                          {p.name}
-                        </Link>
-                        {p.reference_code ? (
-                          <div className="text-muted" style={{ fontSize: 12 }}>
-                            {p.reference_code}
-                          </div>
+                  <td>
+                    <div className="fw-semibold">
+                      <Link to={`/projects/${p.id}`}>{p.name}</Link>
+                    </div>
+                    {p.reference_code ? <div className="text-muted">Ref: {p.reference_code}</div> : null}
+                  </td>
+
+                  <td>
+                    <Badge bg={stageIsCompleted ? "success" : "primary"}>{stageName}</Badge>
+                  </td>
+
+                  <td>
+                    <Badge bg={priorityVariant(p.priority)}>{p.priority}</Badge>
+                  </td>
+
+                  <td>{formatDate(p.due_date)}</td>
+
+                  <td>
+                    {p.station ? (
+                      <Link to={`/stations/${p.station}`}>
+                        {p.station_name ?? `Station #${p.station}`}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+
+                  <td>
+                    {p.customer ? (
+                      <>
+                        <Link to={`/customers/${p.customer}`}>{p.customer_name ?? `Customer #${p.customer}`}</Link>
+                        {isVip ? (
+                          <Badge bg="warning" text="dark" className="ms-2">
+                            VIP
+                          </Badge>
                         ) : null}
-                      </div>
-                    </td>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
 
-                    <td>
-                      <Badge bg={statusVariant(p.status)}>{p.status}</Badge>
-                    </td>
+                  <td>
+                    {p.assigned_to ? (
+                      <Link to={`/employees/${p.assigned_to}`}>
+                        {p.assigned_to_name ?? `Employee #${p.assigned_to}`}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
 
-                    <td>
-                      <Badge bg={priorityVariant(p.priority)}>{p.priority}</Badge>
-                    </td>
+                  <td>
+                    <div className="d-flex gap-2">
+                      <Button
+                        size="sm"
+                        variant={canLogSale ? "success" : "outline-secondary"}
+                        disabled={!canLogSale}
+                        className="px-2"
+                        aria-label="Log sale"
+                        title={canLogSale ? "Log sale" : `Sale logging is disabled at this stage (${stageName}).`}
+                        onClick={() => {
+                          alert("Log Sale is not implemented yet. (Gate is working ✅)");
+                        }}
+                      >
+                        <i className="bi bi-currency-dollar" />
+                      </Button>
 
-                    <td>{formatDate(p.due_date)}</td>
-
-                    <td>{(p as any).station_name ?? "—"}</td>
-
-                    <td>
-                      {p.customer ? (
-                        <div className="d-flex align-items-center gap-2">
-                          <Link to={`/customers/${p.customer}`} style={{ textDecoration: "none" }}>
-                            {p.customer_name ?? `Customer #${p.customer}`}
-                          </Link>
-                          {isVip ? (
-                            <Badge bg="warning" text="dark">
-                              VIP
-                            </Badge>
-                          ) : null}
-                        </div>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-
-                    <td>
-                      {p.assigned_to ? (
-                        <span>{p.assigned_to_name ?? `Employee #${p.assigned_to}`}</span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-
-                    <td className="text-end">
-                      <div className="d-flex gap-2 justify-content-end">
-                        <Button
-                          variant={Boolean((p as any).can_log_sale) ? "success" : "outline-secondary"}
-                          size="sm"
-                          className="px-2"
-                          disabled={!Boolean((p as any).can_log_sale)}
-                          aria-label="Log sale"
-                          title={
-                            Boolean((p as any).can_log_sale)
-                              ? "Log sale"
-                              : "Sale logging is not enabled at this stage."
-                          }
-                          onClick={() => {
-                            alert("Log Sale is not implemented yet. (Gate is working ✅)");
-                          }}
-                        >
-                          <i className="bi bi-currency-dollar" />
-                        </Button>
-
-                        <Button
-                          variant="outline-primary"
-                          size="sm"
-                          className="px-2"
-                          aria-label="View project"
-                          title="View project"
-                          onClick={() => navigate(`/projects/${p.id}`)}
-                        >
-                          <i className="bi bi-eye" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="text-muted">
-                    No projects found.
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        className="px-2"
+                        aria-label="View project"
+                        title="View project"
+                        onClick={() => navigate(`/projects/${p.id}`)}
+                      >
+                        <i className="bi bi-eye" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
-              )}
-            </tbody>
-          </Table>
-        </div>
+              );
+            })}
+
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={10} className="text-center text-muted">
+                  No projects found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </Table>
       )}
-    </div>
+    </>
   );
 }
