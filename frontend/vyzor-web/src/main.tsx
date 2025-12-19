@@ -177,9 +177,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 />
 
                 <Route 
-                  path="/makerfex/inventory" 
+                  path="inventory" 
                   element={
-                  <ProtectedRoute><MFInventory />
+                  <ProtectedRoute>
+                    <MFInventory />
                   </ProtectedRoute>
                   } 
                 />
