@@ -1,6 +1,27 @@
 # backend/inventory/views.py
-from decimal import Decimal, InvalidOperation
+# ============================================================================
+# Inventory ViewSets (Server-Driven Tables)
+# ----------------------------------------------------------------------------
+# Enforces canonical list contract:
+# - ?q=        free-text search (QueryParamSearchFilter)
+# - ?ordering= server-side ordering (asc/desc)
+# - ?page= / ?page_size= pagination (DRF settings)
+#
+# Adds backend-authoritative filters for presets:
+# - ?is_active=0|1
+# - ?low_stock=1   (reorder_point > 0 AND quantity_on_hand <= reorder_point)
+#
+# Tenant safety:
+# - Querysets are always scoped to request.user's shop via get_shop_for_user()
+#
+# Note:
+# - Read-only viewsets for now (no destructive actions).
+# ============================================================================
 
+from decimal import Decimal
+from typing import Optional
+
+from django.db.models import F
 from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter
 
@@ -11,13 +32,7 @@ from .models import Material, Consumable, Equipment
 from .serializers import MaterialSerializer, ConsumableSerializer, EquipmentSerializer
 
 
-def _truthy(v: str | None) -> bool:
-    if v is None:
-        return False
-    return v.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
-
-
-def _parse_bool(v: str | None) -> bool | None:
+def _parse_bool(v: Optional[str]) -> Optional[bool]:
     if v is None:
         return None
     s = v.strip().lower()
@@ -28,20 +43,22 @@ def _parse_bool(v: str | None) -> bool | None:
     return None
 
 
-class InventoryBaseViewSet(viewsets.ModelViewSet):
+def _truthy(v: Optional[str]) -> bool:
+    return _parse_bool(v) is True
+
+
+class InventoryBaseViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    Canonical server-driven table contract:
-    - ?q= search (QueryParamSearchFilter)
+    Base viewset for inventory types with:
+    - Tenant scoping
+    - ?q= search
     - ?ordering=
-    - ?page= / ?page_size=
-    Plus inventory-specific backend-authoritative filters:
-    - ?is_active=0|1
-    - ?low_stock=1  (reorder_point > 0 AND quantity_on_hand <= reorder_point)
+    - Backend-authoritative filters for presets
     """
 
     filter_backends = [QueryParamSearchFilter, OrderingFilter]
 
-    # Keep ordering explicit and predictable.
+    # Keep ordering explicit + stable
     ordering_fields = [
         "name",
         "sku",
@@ -54,7 +71,10 @@ class InventoryBaseViewSet(viewsets.ModelViewSet):
     ]
     ordering = ["name"]
 
-    # set in subclasses
+    # Subclasses must set:
+    # - model
+    # - serializer_class
+    # - search_fields
     model = None
 
     def get_queryset(self):
@@ -64,41 +84,33 @@ class InventoryBaseViewSet(viewsets.ModelViewSet):
 
         qs = self.model.objects.filter(shop=shop)
 
-        # Backend-authoritative filters
         qp = self.request.query_params
 
+        # Backend-authoritative filters
         is_active = _parse_bool(qp.get("is_active"))
         if is_active is not None:
             qs = qs.filter(is_active=is_active)
 
         if _truthy(qp.get("low_stock")):
             # reorder_point > 0 AND quantity_on_hand <= reorder_point
-            qs = qs.filter(reorder_point__gt=0).filter(quantity_on_hand__lte=models.F("reorder_point"))
+            qs = qs.filter(reorder_point__gt=Decimal("0")).filter(
+                quantity_on_hand__lte=F("reorder_point")
+            )
 
-        # Optional future nicety (harmless to include now):
-        # ?preferred_station=<id>
-        pref_station = qp.get("preferred_station")
-        if pref_station:
+        # Optional: station filter (safe to support now; useful later)
+        preferred_station = qp.get("preferred_station")
+        if preferred_station:
             try:
-                qs = qs.filter(preferred_station_id=int(pref_station))
-            except ValueError:
+                qs = qs.filter(preferred_station_id=int(preferred_station))
+            except (TypeError, ValueError):
                 pass
 
         return qs
 
-    def perform_create(self, serializer):
-        # Tenant safety: force shop assignment, ignore client-provided shop.
-        shop = get_shop_for_user(self.request.user)
-        serializer.save(shop=shop)
-
-
-# NOTE: models.F needed; import kept local to avoid clutter above.
-from django.db import models  # noqa: E402
-
 
 class MaterialViewSet(InventoryBaseViewSet):
     model = Material
-    queryset = Material.objects.all()  # required by DRF, but overridden by get_queryset
+    queryset = Material.objects.all()  # DRF requires; tenant scoping in get_queryset
     serializer_class = MaterialSerializer
     search_fields = ["name", "sku", "description", "unit_of_measure", "material_type"]
 
