@@ -9,6 +9,7 @@
 // ============================================================================
 
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button, Card, Table } from "react-bootstrap";
 
 import { useServerDataTable } from "../../hooks/useServerDataTable";
@@ -270,6 +271,7 @@ export default function ProjectsTable({
                     >
                       Assigned{sortIndicator(state.ordering, "assigned_to__last_name")}
                     </th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
 
@@ -297,6 +299,34 @@ export default function ProjectsTable({
                         <td>{p.priority}</td>
                         <td>{p.due_date || "—"}</td>
                         <td>{p.assigned_to_name || "—"}</td>
+                        <td className="text-nowrap">
+                            <div className="d-flex gap-2 justify-content-end">
+                                <Button
+                                size="sm"
+                                variant="outline-success"
+                                disabled={!Boolean((p as any).can_log_sale)}
+                                onClick={() =>
+                                    alert("Log Sale is not implemented yet. (Gate is working ✅)")
+                                }
+                                title={
+                                    Boolean((p as any).can_log_sale)
+                                    ? "Log a sale"
+                                    : "Complete the final stage to enable"
+                                }
+                                >
+                                Log Sale
+                                </Button>
+
+                                <Button
+                                as={Link as any}
+                                to={`/projects/${p.id}`}
+                                size="sm"
+                                variant="outline-primary"
+                                >
+                                View
+                                </Button>
+                            </div>
+                        </td>
                       </tr>
                     ))
                   )}
