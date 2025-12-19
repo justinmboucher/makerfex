@@ -38,26 +38,33 @@ export type EmployeeListResponse = {
   count?: number;
 };
 
+type DRFPaginated<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+};
+
 function unwrapList<T>(data: any): { items: T[]; count?: number } {
   if (Array.isArray(data)) return { items: data };
   if (data && Array.isArray(data.results)) return { items: data.results, count: data.count };
   if (data && Array.isArray(data.items)) return { items: data.items, count: data.count };
-  return { items: [] };
+  return { items: [], count: 0 };
 }
 
 const BASE = "accounts/employees/";
 
 export async function listEmployees(params?: Record<string, any>): Promise<EmployeeListResponse> {
-  const res = await axiosClient.get(BASE, { params });
+  const res = await axiosClient.get<DRFPaginated<Employee> | Employee[] | EmployeeListResponse>(BASE, { params });
   return unwrapList<Employee>(res.data);
 }
 
 export async function getEmployee(id: number): Promise<Employee> {
-  const res = await axiosClient.get(`${BASE}${id}/`);
+  const res = await axiosClient.get<Employee>(`${BASE}${id}/`);
   return res.data;
 }
 
 export async function getMyEmployee(): Promise<Employee> {
-  const res = await axiosClient.get(`${BASE}me/`);
+  const res = await axiosClient.get<Employee>(`${BASE}me/`);
   return res.data;
 }

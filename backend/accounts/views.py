@@ -20,6 +20,16 @@ from .serializers import ShopSerializer, EmployeeSerializer, StationSerializer
 from projects.models import Project
 
 
+def parse_bool(val):
+    if val is None:
+        return None
+    v = str(val).strip().lower()
+    if v in ("1", "true", "t", "yes", "y", "on"):
+        return True
+    if v in ("0", "false", "f", "no", "n", "off"):
+        return False
+    return None
+
 class ShopViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = ShopSerializer
@@ -49,14 +59,20 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         "last_name",
         "email",
         "role",
-        "user__username",
+        "user__username", 
+        "user__email", 
+        "user__first_name", 
+        "user__last_name"
     ]
     ordering_fields = [
         "first_name",
         "last_name",
         "email",
         "role",
-        "is_active",
+        "is_active", 
+        "is_manager",
+        "created_at", 
+        "updated_at",
         "id",
     ]
     ordering = ("first_name", "last_name", "id")  # default ordering when no ?ordering=
@@ -73,7 +89,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         )
 
         # Optional backend filter (so presets can be authoritative)
-        is_active = self.request.query_params.get("is_active")
+        is_active = parse_bool(self.request.query_params.get("is_active"))
         if is_active in ("true", "True", "1"):
             qs = qs.filter(is_active=True)
         elif is_active in ("false", "False", "0"):
@@ -204,7 +220,7 @@ class StationViewSet(viewsets.ModelViewSet):
         )
 
         # Optional backend filter (so presets work)
-        is_active = self.request.query_params.get("is_active")
+        is_active = parse_bool(self.request.query_params.get("is_active"))
         if is_active in ("true", "True", "1"):
             qs = qs.filter(is_active=True)
         elif is_active in ("false", "False", "0"):
