@@ -1,11 +1,13 @@
 // src/components/tables/DataTableControls.tsx
 // ============================================================================
 // Generic controls row for server-driven tables.
-// - Search input
-// - Page size selector (10/25/50/100)
-// - Optional presets dropdown
+// - Search input (left)
+// - Right-side control cluster (presets + save/clear + page size + counts)
+// - Optional presets dropdown with sectioned grouping:
+//   * Saved presets first (user-created)
+//   * Built-in presets second
 // - Optional Save Preset (modal) + Clear filters buttons
-// No destructive actions: saving presets is local/UI-level; filtering remains backend-authoritative.
+// - Optional delete for saved presets (soft action)
 // ============================================================================
 
 import { useMemo, useState } from "react";
@@ -36,6 +38,10 @@ export type DataTableControlsProps<P extends Record<string, any> = Record<string
   onClearFilters?: () => void;
   onSavePreset?: (label: string) => void;
 
+  // Delete presets (optional; intended for saved presets only)
+  onDeletePreset?: (key: string) => void;
+  canDeletePreset?: (key: string) => boolean;
+
   // UI state helpers (optional)
   canClearFilters?: boolean; // default true
   canSavePreset?: boolean; // default true
@@ -48,6 +54,45 @@ export type DataTableControlsProps<P extends Record<string, any> = Record<string
 function parsePageSize(v: string): number {
   const n = Number(v);
   return PAGE_SIZES.includes(n as any) ? n : 25;
+}
+
+function PresetRow({
+  presetKey,
+  label,
+  isActive,
+  onSelect,
+  showDelete,
+  onDelete,
+}: {
+  presetKey: string;
+  label: string;
+  isActive: boolean;
+  onSelect: (key: string) => void;
+  showDelete: boolean;
+  onDelete?: (key: string) => void;
+}) {
+  return (
+    <div className="d-flex align-items-center justify-content-between px-2">
+      <Dropdown.Item className="flex-grow-1" active={isActive} onClick={() => onSelect(presetKey)}>
+        {label}
+      </Dropdown.Item>
+
+      {showDelete ? (
+        <button
+          type="button"
+          className="btn btn-link btn-sm text-danger ms-2"
+          title="Delete preset"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete?.(presetKey);
+          }}
+        >
+          ✕
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export default function DataTableControls<P extends Record<string, any> = Record<string, any>>(
@@ -65,6 +110,8 @@ export default function DataTableControls<P extends Record<string, any> = Record
     onPresetChange,
     onClearFilters,
     onSavePreset,
+    onDeletePreset,
+    canDeletePreset,
     canClearFilters = true,
     canSavePreset = true,
     savePresetTitle = "Save preset",
@@ -75,6 +122,13 @@ export default function DataTableControls<P extends Record<string, any> = Record
     if (!presets || !activePresetKey) return undefined;
     return presets.find((p) => p.key === activePresetKey)?.label;
   }, [presets, activePresetKey]);
+
+  const { savedPresets, builtinPresets } = useMemo(() => {
+    const list = presets ?? [];
+    const saved = list.filter((p) => !p.is_builtin);
+    const builtin = list.filter((p) => !!p.is_builtin);
+    return { savedPresets: saved, builtinPresets: builtin };
+  }, [presets]);
 
   // Save preset modal state
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -109,23 +163,66 @@ export default function DataTableControls<P extends Record<string, any> = Record
   return (
     <>
       <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
-        {/* Left cluster: presets + save/clear + search */}
-        <div className="d-flex flex-wrap gap-2 align-items-center">
+        {/* Left: Search */}
+        <Form.Control
+          style={{ maxWidth: 320 }}
+          placeholder={searchPlaceholder}
+          value={q}
+          onChange={(e) => onQChange(e.target.value)}
+        />
+
+        {/* Right: Presets + Save/Clear + PageSize + Counts */}
+        <div className="d-flex flex-wrap gap-2 align-items-center ms-auto">
           {presets && presets.length > 0 && onPresetChange && (
-            <Dropdown>
+            <Dropdown align="end">
               <Dropdown.Toggle variant="outline-secondary" size="sm">
                 Presets{activePresetLabel ? `: ${activePresetLabel}` : ""}
               </Dropdown.Toggle>
-              <Dropdown.Menu>
-                {presets.map((p) => (
-                  <Dropdown.Item
-                    key={p.key}
-                    active={p.key === activePresetKey}
-                    onClick={() => onPresetChange(p.key)}
-                  >
-                    {p.label}
-                  </Dropdown.Item>
-                ))}
+
+              <Dropdown.Menu style={{ minWidth: 260 }}>
+                {/* Saved section */}
+                {savedPresets.length > 0 && (
+                  <>
+                    <Dropdown.Header className="fw-bold">Saved</Dropdown.Header>
+                    {savedPresets.map((p) => {
+                      const deletable = !!onDeletePreset && !!canDeletePreset?.(p.key);
+                      return (
+                        <PresetRow
+                          key={p.key}
+                          presetKey={p.key}
+                          label={p.label}
+                          isActive={p.key === activePresetKey}
+                          onSelect={onPresetChange}
+                          showDelete={deletable}
+                          onDelete={onDeletePreset}
+                        />
+                      );
+                    })}
+                    <Dropdown.Divider />
+                  </>
+                )}
+
+                {/* Built-in section */}
+                {builtinPresets.length > 0 && (
+                  <>
+                    <Dropdown.Header className="fw-bold">Built-in</Dropdown.Header>
+                    {builtinPresets.map((p) => (
+                      <PresetRow
+                        key={p.key}
+                        presetKey={p.key}
+                        label={p.label}
+                        isActive={p.key === activePresetKey}
+                        onSelect={onPresetChange}
+                        showDelete={false}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Fallback */}
+                {savedPresets.length === 0 && builtinPresets.length === 0 && (
+                  <div className="px-3 py-2 text-muted">No presets</div>
+                )}
               </Dropdown.Menu>
             </Dropdown>
           )}
@@ -152,16 +249,6 @@ export default function DataTableControls<P extends Record<string, any> = Record
             </button>
           )}
 
-          <Form.Control
-            style={{ maxWidth: 320 }}
-            placeholder={searchPlaceholder}
-            value={q}
-            onChange={(e) => onQChange(e.target.value)}
-          />
-        </div>
-
-        {/* Right cluster: page size + counts */}
-        <div className="d-flex flex-wrap gap-2 align-items-center ms-auto">
           <Form.Select
             style={{ width: 140 }}
             value={String(pageSize)}

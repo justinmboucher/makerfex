@@ -6,25 +6,34 @@
 // - ?q= search (debounced)
 // - ?ordering= sorting
 // - ?page= / ?page_size= pagination
-// - Optional presets (backend param bundles)
+// - Presets (builtin + saved) stored locally (soft action)
 // ============================================================================
 
+import { useMemo, useState } from "react";
 import { Table, Spinner, Badge, Button } from "react-bootstrap";
 import { Link } from "react-router-dom";
+
 import { listCustomers } from "../../api/customers";
 import type { Customer } from "../../api/customers";
 import { useServerDataTable } from "../../hooks/useServerDataTable";
+
 import DataTableControls from "../../components/tables/DataTableControls";
-import type { TablePreset } from "../../components/tables/tablePresets";
+import {
+  addSavedPreset,
+  loadSavedPresets,
+  deleteSavedPreset,
+  type TablePreset,
+} from "../../components/tables/tablePresets";
 
 type CustomerExtraParams = {
   vip?: 1;
 };
 
-const CUSTOMER_PRESETS: TablePreset<CustomerExtraParams>[] = [
+const PRESET_STORAGE_KEY = "makerfex.customers.tablePresets";
+
+const BUILTIN_PRESETS: TablePreset<CustomerExtraParams & { q?: string; ordering?: string }>[] = [
   { key: "all", label: "All customers", params: {}, is_builtin: true },
   { key: "vip", label: "VIP only", params: { vip: 1 }, is_builtin: true },
-  // you can add "recent" later if you support ordering presets on the backend contract
 ];
 
 function toggleOrdering(current: string, nextField: string): string {
@@ -43,8 +52,19 @@ function sortIndicator(ordering: string, field: string): string {
 }
 
 export default function Customers() {
-  const table = useServerDataTable<Customer, CustomerExtraParams>({
-    presets: CUSTOMER_PRESETS,
+  // 1) Load saved presets first (hook must be called after we compute presets)
+  const [savedPresets, setSavedPresets] = useState<
+    TablePreset<CustomerExtraParams & { q?: string; ordering?: string }>[]
+  >(() => loadSavedPresets(PRESET_STORAGE_KEY));
+
+  // 2) Combine builtin + saved
+  const presets = useMemo(() => {
+    return [...BUILTIN_PRESETS, ...savedPresets];
+  }, [savedPresets]);
+
+  // 3) Hook uses the combined presets list
+  const table = useServerDataTable<Customer, CustomerExtraParams & { q?: string; ordering?: string }>({
+    presets,
     defaultPresetKey: "all",
     debounceMs: 250,
     fetcher: async (params) => {
@@ -54,7 +74,63 @@ export default function Customers() {
   });
 
   const { state, actions } = table;
-  const shownLabel = state.loading ? "Loading…" : `${state.items.length} shown • ${state.count} total`;
+
+  const shownLabel = state.loading
+    ? "Loading…"
+    : `${state.items.length} shown • ${state.count} total`;
+
+  // Build the params snapshot we save into a preset:
+  // - include preset params (e.g. vip=1) + current q/ordering
+  // - exclude paging
+  const currentPresetParams =
+    presets.find((p) => p.key === state.activePresetKey)?.params ?? {};
+
+  const saveParams = useMemo(() => {
+    const out: any = { ...currentPresetParams };
+
+    const qTrim = state.q.trim();
+    if (qTrim) out.q = qTrim;
+    if (state.ordering) out.ordering = state.ordering;
+
+    delete out.page;
+    delete out.page_size;
+
+    return out as CustomerExtraParams & { q?: string; ordering?: string };
+  }, [currentPresetParams, state.q, state.ordering]);
+
+  function handleSavePreset(label: string) {
+    const key =
+      (globalThis.crypto?.randomUUID?.() as string | undefined) ??
+      `preset_${Date.now()}`;
+
+    const { next, error } = addSavedPreset(PRESET_STORAGE_KEY, savedPresets, {
+      key,
+      label,
+      params: saveParams,
+    });
+
+    if (error) {
+      alert(error);
+      return;
+    }
+
+    setSavedPresets(next);
+    actions.applyPreset(key);
+  }
+
+  function handleDeletePreset(key: string) {
+    // Soft action, but still confirm to avoid oops
+    const yes = window.confirm("Delete this saved preset?");
+    if (!yes) return;
+
+    const next = deleteSavedPreset(PRESET_STORAGE_KEY, savedPresets, key);
+    setSavedPresets(next);
+
+    // If you deleted the active preset, fall back to default
+    if (state.activePresetKey === key) {
+      actions.applyPreset("all");
+    }
+  }
 
   return (
     <div>
@@ -68,14 +144,14 @@ export default function Customers() {
         pageSize={state.pageSize}
         onPageSizeChange={(n) => actions.setPageSize(n)}
         shownCountLabel={shownLabel}
-        presets={CUSTOMER_PRESETS}
+        presets={presets as any}
         activePresetKey={state.activePresetKey}
         onPresetChange={(key) => actions.applyPreset(key)}
         onClearFilters={() => actions.clearFilters()}
-        onSavePreset={(label) => {
-          // temporary wiring: you can persist to localStorage next
-          console.log("Save preset:", label);
-        }}
+        onSavePreset={(label) => handleSavePreset(label)}
+        onDeletePreset={(key) => handleDeletePreset(key)}
+        canDeletePreset={(key) => !BUILTIN_PRESETS.some((p) => p.key === key)}
+        searchPlaceholder="Search customers…"
       />
 
       {state.loading ? (
@@ -97,11 +173,17 @@ export default function Customers() {
                   Name{sortIndicator(state.ordering, "last_name")}
                 </th>
 
-                <th role="button" onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "email"))}>
+                <th
+                  role="button"
+                  onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "email"))}
+                >
                   Email{sortIndicator(state.ordering, "email")}
                 </th>
 
-                <th role="button" onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "phone"))}>
+                <th
+                  role="button"
+                  onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "phone"))}
+                >
                   Phone{sortIndicator(state.ordering, "phone")}
                 </th>
 
@@ -150,7 +232,11 @@ export default function Customers() {
             </div>
 
             <div className="d-flex gap-2">
-              <Button variant="outline-secondary" disabled={state.page <= 1} onClick={() => actions.goToPage(state.page - 1)}>
+              <Button
+                variant="outline-secondary"
+                disabled={state.page <= 1}
+                onClick={() => actions.goToPage(state.page - 1)}
+              >
                 ← Prev
               </Button>
               <Button

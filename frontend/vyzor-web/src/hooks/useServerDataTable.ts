@@ -148,9 +148,14 @@ export function useServerDataTable<T, P extends Record<string, any> = Record<str
   function applyPreset(key: string) {
     setActivePresetKey(key);
     setPage(1);
-    // Optional: you can decide whether presets should clear q/ordering.
-    // For now: keep q/ordering as user-driven explicit state.
-  }
+
+    // If the preset includes q/ordering, apply them to state so the UI matches.
+    const hit = (opts.presets ?? []).find((p) => p.key === key);
+    const params: any = hit?.params ?? {};
+
+    if ("q" in params) setQ(String(params.q ?? ""));
+    if ("ordering" in params) setOrdering(String(params.ordering ?? ""));
+    }
 
   function clearSorting() {
     setOrdering("");
