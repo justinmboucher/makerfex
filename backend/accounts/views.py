@@ -1,17 +1,22 @@
 # backend/accounts/views.py
 
-from django.shortcuts import get_object_or_404
-from rest_framework.decorators import action
-from rest_framework import viewsets
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-
 from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
+
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
 from accounts.utils import get_shop_for_user
+from makerfex_backend.filters import QueryParamSearchFilter
+
 from .models import Shop, Employee, Station
 from .serializers import ShopSerializer, EmployeeSerializer, StationSerializer
+
 from projects.models import Project
 
 
@@ -22,15 +27,59 @@ class ShopViewSet(viewsets.ModelViewSet):
 
 
 class EmployeeViewSet(viewsets.ModelViewSet):
+    """
+    Employees API
+    - Shop-scoped queryset
+    - Server table contract:
+      ?q=         (search)
+      ?ordering=  (sorting)
+      ?page= / ?page_size= (pagination via global DRF settings)
+      Optional:
+      ?is_active=true|false
+      ?with_counts=1 (enrich list results)
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = EmployeeSerializer
     queryset = Employee.objects.none()
+
+    # ✅ Contract support
+    filter_backends = [QueryParamSearchFilter, OrderingFilter]
+    search_fields = [
+        "first_name",
+        "last_name",
+        "email",
+        "role",
+        "user__username",
+    ]
+    ordering_fields = [
+        "first_name",
+        "last_name",
+        "email",
+        "role",
+        "is_active",
+        "id",
+    ]
+    ordering = ("first_name", "last_name", "id")  # default ordering when no ?ordering=
 
     def get_queryset(self):
         shop = get_shop_for_user(self.request.user)
         if not shop:
             return Employee.objects.none()
-        return Employee.objects.filter(shop=shop).order_by("first_name", "last_name", "id")
+
+        qs = (
+            Employee.objects
+            .filter(shop=shop)
+            .select_related("user", "shop")
+        )
+
+        # Optional backend filter (so presets can be authoritative)
+        is_active = self.request.query_params.get("is_active")
+        if is_active in ("true", "True", "1"):
+            qs = qs.filter(is_active=True)
+        elif is_active in ("false", "False", "0"):
+            qs = qs.filter(is_active=False)
+
+        return qs
 
     @action(detail=False, methods=["get"], url_path="me")
     def me(self, request):
@@ -39,7 +88,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         GET /api/accounts/employees/me/
         """
         employee = get_object_or_404(
-            self.get_queryset().select_related("user", "shop"),
+            self.get_queryset(),
             user=request.user,
         )
         serializer = self.get_serializer(employee)
@@ -47,12 +96,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         """
-        Optional: /api/accounts/employees/?with_counts=1
+        Optional:
+        /api/accounts/employees/?with_counts=1
+
         Adds:
-          - assigned_project_count (projects assigned to employee, not archived, shop-scoped)
-          - overdue_project_count
+        - assigned_project_count (projects assigned to employee, not archived, shop-scoped)
+        - overdue_project_count
         """
-        qs = self.get_queryset()
         response = super().list(request, *args, **kwargs)
 
         with_counts = request.query_params.get("with_counts")
@@ -74,11 +124,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         assigned_map = {row["assigned_to_id"]: row["c"] for row in assigned_counts}
 
         not_done_q = ~(
-            Q(status__iexact="done") |
-            Q(status__iexact="completed") |
-            Q(status__iexact="complete") |
-            Q(status__iexact="cancelled") |
-            Q(status__iexact="canceled")
+            Q(status__iexact="done")
+            | Q(status__iexact="completed")
+            | Q(status__iexact="complete")
+            | Q(status__iexact="cancelled")
+            | Q(status__iexact="canceled")
         )
 
         overdue_counts = (
@@ -109,23 +159,58 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
         return response
 
+
 class StationViewSet(viewsets.ModelViewSet):
+    """
+    Stations API
+    - Shop-scoped queryset
+    - Server table contract:
+      ?q=         (search)
+      ?ordering=  (sorting)
+      ?page= / ?page_size= (pagination via global DRF settings)
+      Optional:
+      ?is_active=true|false
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = StationSerializer
     queryset = Station.objects.none()
+
+    # ✅ Contract support
+    filter_backends = [QueryParamSearchFilter, OrderingFilter]
+    search_fields = [
+        "name",
+        "code",
+        "description",
+    ]
+    ordering_fields = [
+        "name",
+        "code",
+        "is_active",
+        "employee_count",  # annotate below
+        "id",
+    ]
+    ordering = ("name", "id")
 
     def get_queryset(self):
         shop = get_shop_for_user(self.request.user)
         if not shop:
             return Station.objects.none()
 
-        return (
+        qs = (
             Station.objects
             .filter(shop=shop)
-            .prefetch_related("employees")          # ✅ for employees_detail
-            .annotate(employee_count=Count("employees", distinct=True))  # ✅ for list
-            .order_by("name", "id")
+            .prefetch_related("employees")  # for employees_detail
+            .annotate(employee_count=Count("employees", distinct=True))
         )
+
+        # Optional backend filter (so presets work)
+        is_active = self.request.query_params.get("is_active")
+        if is_active in ("true", "True", "1"):
+            qs = qs.filter(is_active=True)
+        elif is_active in ("false", "False", "0"):
+            qs = qs.filter(is_active=False)
+
+        return qs
 
 
 class CurrentUserView(APIView):
