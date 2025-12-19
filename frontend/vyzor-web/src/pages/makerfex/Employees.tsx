@@ -25,9 +25,7 @@ import {
 } from "../../components/tables/tablePresets";
 
 type EmployeeExtraParams = {
-  // Backend filter support
-  is_active?: "true" | "false";
-  // Always on for this page (enrichment)
+  is_active?: 1 | 0;
   with_counts?: 1;
 };
 
@@ -37,8 +35,8 @@ const PRESET_STORAGE_KEY = "makerfex.employees.tablePresets";
 
 const BUILTIN_PRESETS: TablePreset[] = [
   { key: "all", label: "All employees", params: {}, is_builtin: true },
-  { key: "active", label: "Active only", params: { is_active: "true" }, is_builtin: true },
-  { key: "inactive", label: "Inactive only", params: { is_active: "false" }, is_builtin: true },
+  { key: "active", label: "Active only", params: { is_active: 1 }, is_builtin: true },
+  { key: "inactive", label: "Inactive only", params: { is_active: 0 }, is_builtin: true },
 ];
 
 function toggleOrdering(current: string, nextField: string): string {
