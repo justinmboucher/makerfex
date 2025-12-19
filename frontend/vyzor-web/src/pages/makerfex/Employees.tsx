@@ -1,94 +1,256 @@
 // src/pages/makerfex/Employees.tsx
+// ============================================================================
+// Makerfex Employees Page
+// ----------------------------------------------------------------------------
+// Server-driven data table contract:
+// - ?q= search (debounced)
+// - ?ordering= sorting
+// - ?page= / ?page_size= pagination
+// - Presets (Saved + Built-in) are param bundles (backend authoritative)
+// - Always uses with_counts=1 so workload/overdue columns remain accurate
+// ============================================================================
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, Spinner, Table } from "react-bootstrap";
+import { Badge, Button, Card, Table } from "react-bootstrap";
+
 import { listEmployees, type Employee } from "../../api/employees";
+import { useServerDataTable } from "../../hooks/useServerDataTable";
+import DataTableControls from "../../components/tables/DataTableControls";
+import {
+  addSavedPreset,
+  loadSavedPresets,
+  deleteSavedPreset,
+  type TablePreset,
+} from "../../components/tables/tablePresets";
+
+type EmployeeExtraParams = {
+  // Backend filter support we added
+  is_active?: "true" | "false";
+
+  // Always on for this page (enrichment)
+  with_counts?: 1;
+};
+
+type EmployeePresetParams = EmployeeExtraParams & {
+  q?: string;
+  ordering?: string;
+};
+
+const PRESET_STORAGE_KEY = "makerfex.employees.tablePresets";
+
+const BUILTIN_PRESETS: TablePreset<EmployeePresetParams>[] = [
+  { key: "all", label: "All employees", params: {}, is_builtin: true },
+  { key: "active", label: "Active only", params: { is_active: "true" }, is_builtin: true },
+  { key: "inactive", label: "Inactive only", params: { is_active: "false" }, is_builtin: true },
+];
+
+function toggleOrdering(current: string, nextField: string): string {
+  const isDesc = current === `-${nextField}`;
+  const isAsc = current === nextField;
+
+  if (!isAsc && !isDesc) return nextField; // none -> asc
+  if (isAsc) return `-${nextField}`; // asc -> desc
+  return ""; // desc -> none
+}
+
+function sortIndicator(ordering: string, field: string): string {
+  if (ordering === field) return " ▲";
+  if (ordering === `-${field}`) return " ▼";
+  return "";
+}
+
+function employeeName(e: Employee) {
+  const display = (e as any)?.display_name;
+  if (display) return display;
+  const name = `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim();
+  return name || `Employee #${e.id}`;
+}
 
 export default function Employees() {
-  const [items, setItems] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const [savedPresets, setSavedPresets] = useState<TablePreset<EmployeePresetParams>[]>(() =>
+    loadSavedPresets<EmployeePresetParams>(PRESET_STORAGE_KEY)
+  );
 
-  useEffect(() => {
-    let alive = true;
+  const presets = useMemo(() => [...savedPresets, ...BUILTIN_PRESETS], [savedPresets]);
 
-    (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const { items } = await listEmployees({ with_counts: 1 });
-        if (!alive) return;
-        setItems(items);
-      } catch (e: any) {
-        if (!alive) return;
-        setErr(e?.response?.data?.detail || e?.message || "Failed to load employees");
-      } finally {
-        if (!alive) return;
-        setLoading(false);
-      }
-    })();
+  // Always-on enrichment
+  const extraParams = useMemo<EmployeePresetParams>(() => ({ with_counts: 1 }), []);
 
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const table = useServerDataTable<Employee, EmployeePresetParams>({
+    presets,
+    defaultPresetKey: "all",
+    debounceMs: 250,
+    extraParams,
+    fetcher: async (params) => {
+      const data = await listEmployees(params as any);
+      return { count: data.count ?? 0, results: data.items ?? [] };
+    },
+  });
+
+  const { state, actions } = table;
+  const shownLabel = state.loading ? "Loading…" : `${state.items.length} shown • ${state.count} total`;
+
+  // Save: store current effective preset params + q/ordering (never page/page_size)
+  const currentPresetParams =
+    presets.find((p) => p.key === state.activePresetKey)?.params ?? ({} as EmployeePresetParams);
+
+  const saveParams = useMemo(() => {
+    const out: EmployeePresetParams = { ...(currentPresetParams as EmployeePresetParams) };
+
+    const qTrim = state.q.trim();
+    if (qTrim) out.q = qTrim;
+    if (state.ordering) out.ordering = state.ordering;
+
+    // never save paging
+    delete (out as any).page;
+    delete (out as any).page_size;
+
+    // We don’t store with_counts in presets; it’s always on via extraParams.
+    delete (out as any).with_counts;
+
+    return out;
+  }, [currentPresetParams, state.q, state.ordering]);
+
+  function handleSavePreset(label: string) {
+    const key = (globalThis.crypto?.randomUUID?.() as string | undefined) ?? `preset_${Date.now()}`;
+
+    const { next, error } = addSavedPreset<EmployeePresetParams>(PRESET_STORAGE_KEY, savedPresets, {
+      key,
+      label,
+      params: saveParams,
+    });
+
+    if (error) {
+      alert(error);
+      return;
+    }
+
+    setSavedPresets(next);
+    actions.applyPreset(key);
+  }
+
+  function handleDeletePreset(key: string) {
+    const yes = window.confirm("Delete this saved preset?");
+    if (!yes) return;
+
+    const next = deleteSavedPreset<EmployeePresetParams>(PRESET_STORAGE_KEY, savedPresets, key);
+    setSavedPresets(next);
+
+    if (state.activePresetKey === key) actions.applyPreset("all");
+  }
 
   return (
     <>
       <h3 className="mb-3">Employees</h3>
 
-      <Card>
-        <Card.Body>
-          {loading ? (
-            <div className="d-flex align-items-center gap-2">
-              <Spinner animation="border" size="sm" />
-              <span>Loading…</span>
-            </div>
-          ) : err ? (
-            <div className="text-danger">{err}</div>
-          ) : items.length === 0 ? (
-            <div className="text-muted">No employees found.</div>
-          ) : (
-            <Table striped bordered hover responsive size="sm" className="mb-0">
+      <Card className="p-3">
+        <DataTableControls<EmployeePresetParams>
+          q={state.q}
+          onQChange={(v) => actions.setQ(v)}
+          searchPlaceholder="Search employees…"
+          pageSize={state.pageSize}
+          onPageSizeChange={(n) => actions.setPageSize(n)}
+          shownCountLabel={shownLabel}
+          presets={presets}
+          activePresetKey={state.activePresetKey}
+          onPresetChange={(key) => actions.applyPreset(key)}
+          onClearFilters={() => actions.clearFilters()}
+          onSavePreset={(label) => handleSavePreset(label)}
+          onDeletePreset={(key) => handleDeletePreset(key)}
+          canDeletePreset={(key) => !BUILTIN_PRESETS.some((p) => p.key === key)}
+        />
+
+        {state.error ? (
+          <div className="text-danger py-2">{state.error}</div>
+        ) : (
+          <>
+            <Table responsive hover className="align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Role</th>
-                  <th>Email</th>
-                  <th>Workload</th>
-                  <th>Overdue</th>
-                  <th>Status</th>
+                  <th
+                    role="button"
+                    onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "last_name"))}
+                  >
+                    Name{sortIndicator(state.ordering, "last_name")}
+                  </th>
+
+                  <th role="button" onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "role"))}>
+                    Role{sortIndicator(state.ordering, "role")}
+                  </th>
+
+                  <th role="button" onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "email"))}>
+                    Email{sortIndicator(state.ordering, "email")}
+                  </th>
+
+                  <th title="Workload (requires with_counts=1)">Workload</th>
+                  <th title="Overdue (requires with_counts=1)">Overdue</th>
+
+                  <th
+                    role="button"
+                    onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "is_active"))}
+                  >
+                    Status{sortIndicator(state.ordering, "is_active")}
+                  </th>
                 </tr>
               </thead>
+
               <tbody>
-                {items.map((e) => {
-                  const name = `${e.first_name} ${e.last_name || ""}`.trim();
-                  return (
+                {state.loading ? (
+                  <tr>
+                    <td colSpan={6} className="py-4 text-muted">
+                      Loading…
+                    </td>
+                  </tr>
+                ) : state.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-4 text-muted">
+                      No employees found.
+                    </td>
+                  </tr>
+                ) : (
+                  state.items.map((e) => (
                     <tr key={e.id}>
                       <td>
-                        <Link to={`/employees/${e.id}`}>{name || `Employee #${e.id}`}</Link>
+                        <Link to={`/employees/${e.id}`}>{employeeName(e)}</Link>
                       </td>
                       <td>{e.role || "—"}</td>
                       <td>{e.email || "—"}</td>
+                      <td>{(e as any).assigned_project_count ?? 0}</td>
+                      <td>{(e as any).overdue_project_count ?? 0}</td>
                       <td>
-                        <Link to={`/employees/${e.id}`}>
-                          {(e as any).assigned_project_count ?? 0}
-                        </Link>
+                        {e.is_active ? <Badge bg="success">Active</Badge> : <Badge bg="secondary">Inactive</Badge>}
                       </td>
-                      <td>
-                        <Link to={`/employees/${e.id}`}>
-                          {(e as any).overdue_project_count ?? 0}
-                        </Link>
-                      </td>
-                      <td>{e.is_active ? "Active" : "Inactive"}</td>
                     </tr>
-                  );
-                })}
+                  ))
+                )}
               </tbody>
             </Table>
-          )}
-        </Card.Body>
+
+            <div className="d-flex align-items-center justify-content-between mt-3">
+              <div className="text-muted">
+                Page {state.page} of {state.pageCount}
+              </div>
+
+              <div className="d-flex gap-2">
+                <Button
+                  variant="outline-secondary"
+                  disabled={state.page <= 1}
+                  onClick={() => actions.goToPage(state.page - 1)}
+                >
+                  ← Prev
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  disabled={state.page >= state.pageCount}
+                  onClick={() => actions.goToPage(state.page + 1)}
+                >
+                  Next →
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
       </Card>
     </>
   );

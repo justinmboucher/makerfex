@@ -2,7 +2,10 @@
 // ============================================================================
 // Makerfex Employees API (Frontend)
 // ----------------------------------------------------------------------------
-// Read-only usage for now (list + detail + "me").
+// Read-only usage for now (list + detail).
+// Supports server-driven table contract params:
+// - q, ordering, page, page_size, plus backend filters (e.g. is_active)
+// - with_counts=1 to enrich list results (assigned_project_count, overdue_project_count)
 // ============================================================================
 
 import axiosClient from "./axiosClient";
@@ -21,58 +24,40 @@ export type Employee = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // Optional enrichment when with_counts=1
+  assigned_project_count?: number;
+  overdue_project_count?: number;
+
+  // Optional convenience field (some serializers provide this)
+  display_name?: string;
 };
 
-type DRFPaginated<T> = {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: T[];
+export type EmployeeListResponse = {
+  items: Employee[];
+  count?: number;
 };
 
 function unwrapList<T>(data: any): { items: T[]; count?: number } {
   if (Array.isArray(data)) return { items: data };
   if (data && Array.isArray(data.results)) return { items: data.results, count: data.count };
+  if (data && Array.isArray(data.items)) return { items: data.items, count: data.count };
   return { items: [] };
 }
 
 const BASE = "accounts/employees/";
 
-// Cache the entire "me" employee object (small + useful)
-const ME_CACHE_KEY = "mf_employee_me";
-
-export async function listEmployees(params?: Record<string, any>) {
-  const res = await axiosClient.get<DRFPaginated<Employee> | Employee[]>(BASE, { params });
+export async function listEmployees(params?: Record<string, any>): Promise<EmployeeListResponse> {
+  const res = await axiosClient.get(BASE, { params });
   return unwrapList<Employee>(res.data);
 }
 
 export async function getEmployee(id: number): Promise<Employee> {
-  const res = await axiosClient.get<Employee>(`${BASE}${id}/`);
+  const res = await axiosClient.get(`${BASE}${id}/`);
   return res.data;
 }
 
-export function clearMyEmployeeCache() {
-  localStorage.removeItem(ME_CACHE_KEY);
-}
-
-export async function getMyEmployee(opts?: { forceRefresh?: boolean }): Promise<Employee> {
-  const forceRefresh = !!opts?.forceRefresh;
-
-  if (!forceRefresh) {
-    const cached = localStorage.getItem(ME_CACHE_KEY);
-    if (cached) {
-      try {
-        return JSON.parse(cached) as Employee;
-      } catch {
-        localStorage.removeItem(ME_CACHE_KEY);
-      }
-    }
-  }
-
-  // Uses same BASE style as everything else
-  const res = await axiosClient.get<Employee>(`${BASE}me/`);
-  const employee = res.data;
-
-  localStorage.setItem(ME_CACHE_KEY, JSON.stringify(employee));
-  return employee;
+export async function getMyEmployee(): Promise<Employee> {
+  const res = await axiosClient.get(`${BASE}me/`);
+  return res.data;
 }
