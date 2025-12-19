@@ -589,6 +589,15 @@ export const MENUITEMS: any = [
     selected: false,
   },
 
+  {
+    title: "Inventory",
+    icon: <i className="ri-box-3-line side-menu__icon"></i>,
+    type: "link",
+    path: "/inventory",
+    active: false,
+    selected: false,
+  },
+
   // Optional dev tool (you can remove later)
   {
     title: "API Proof",

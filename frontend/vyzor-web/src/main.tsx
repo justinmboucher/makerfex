@@ -26,6 +26,7 @@ const MFEmployeeDetail = lazy(() => import("./pages/makerfex/EmployeeDetail.tsx"
 const MFStations = lazy(() => import("./pages/makerfex/Stations.tsx"));
 const MFStationDetail = lazy(() => import("./pages/makerfex/StationDetail.tsx"));
 const MFTasks = lazy(() => import("./pages/makerfex/Tasks.tsx"));
+const MFInventory = lazy(() => import("./pages/makerfex/Inventory.tsx"));
 
 
 const App = lazy(() => import('./pages/App.tsx'));
@@ -173,6 +174,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                       <MFTasks />
                     </ProtectedRoute>
                   }
+                />
+
+                <Route 
+                  path="/makerfex/inventory" 
+                  element={
+                  <ProtectedRoute><MFInventory />
+                  </ProtectedRoute>
+                  } 
                 />
 
                 {/* Keep proof route for now */}
