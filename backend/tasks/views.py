@@ -29,11 +29,11 @@ class TaskViewSet(viewsets.ModelViewSet):
     Tasks API (shop-scoped)
 
     Canonical server-driven table contract:
-      ?q= (search)
-      ?ordering= (sorting)
-      ?page= / ?page_size= (pagination via global DRF settings)
+      ?q=
+      ?ordering=
+      ?page= / ?page_size=
 
-    Preset-friendly filters (authoritative):
+    Preset-friendly filters:
       ?status=todo,in_progress,blocked,done,cancelled
       ?project=<id>
       ?station=<id>
