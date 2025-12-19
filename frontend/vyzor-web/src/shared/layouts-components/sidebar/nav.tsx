@@ -580,6 +580,15 @@ export const MENUITEMS: any = [
     selected: false,
   },
 
+  {
+    title: "Tasks",
+    icon: <i className="ri-task-line side-menu__icon"></i>,
+    type: "link",
+    path: "/tasks",
+    active: false,
+    selected: false,
+  },
+
   // Optional dev tool (you can remove later)
   {
     title: "API Proof",
