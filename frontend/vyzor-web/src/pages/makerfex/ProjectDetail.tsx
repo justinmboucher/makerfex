@@ -1,12 +1,8 @@
 // src/pages/makerfex/ProjectDetail.tsx
 // ============================================================================
-// Makerfex Project Detail (Phase 4)
+// Makerfex Project Detail (Read-only)
 // ----------------------------------------------------------------------------
-// Purpose:
-// - Render a useful project summary inside the Vyzor shell.
-// - Keep styling minimal (React-Bootstrap only).
-// - Add relational navigation (Customer link).
-// - Add optional relational content: Related Projects (same customer), read-only.
+// Adds embedded Tasks table (server-driven) scoped to this project.
 // ============================================================================
 
 import { useEffect, useMemo, useState } from "react";
@@ -15,6 +11,7 @@ import { Badge, Button, Card, Col, Row, Spinner, Table } from "react-bootstrap";
 
 import { getProject, listProjects } from "../../api/projects";
 import type { Project } from "../../api/projects";
+import TasksTable from "../../components/makerfex/TasksTable";
 
 function formatDate(d: string | null | undefined) {
   if (!d) return "—";
@@ -36,16 +33,14 @@ export default function ProjectDetail() {
   // Load project
   useEffect(() => {
     let alive = true;
-
     (async () => {
       setLoading(true);
       setErr(null);
-
       try {
         if (!Number.isFinite(projectId)) throw new Error("Invalid project id");
         const p = await getProject(projectId);
         if (!alive) return;
-        setData(p);
+        setData(p as any);
       } catch (e: any) {
         if (!alive) return;
         setErr(e?.response?.data?.detail || e?.message || "Failed to load project");
@@ -54,7 +49,6 @@ export default function ProjectDetail() {
         setLoading(false);
       }
     })();
-
     return () => {
       alive = false;
     };
@@ -63,11 +57,8 @@ export default function ProjectDetail() {
   // Load related projects (same customer), excluding this project
   useEffect(() => {
     let alive = true;
-
     (async () => {
       const customerId = (data as any)?.customer as number | null | undefined;
-
-      // If no customer, no related projects section
       if (!customerId) {
         setRelated([]);
         setRelatedErr(null);
@@ -77,15 +68,11 @@ export default function ProjectDetail() {
 
       setRelatedLoading(true);
       setRelatedErr(null);
-
       try {
-        const { items } = await listProjects({ customer: customerId });
-
+        const { items } = await listProjects({ customer: customerId } as any);
         if (!alive) return;
-
-        // Exclude this project and keep stable ordering
-        const filtered = (items || []).filter((p) => p.id !== projectId);
-        setRelated(filtered);
+        const filtered = (items || []).filter((p: any) => p.id !== projectId);
+        setRelated(filtered as any);
       } catch (e: any) {
         if (!alive) return;
         setRelatedErr(e?.response?.data?.detail || e?.message || "Failed to load related projects");
@@ -94,7 +81,6 @@ export default function ProjectDetail() {
         setRelatedLoading(false);
       }
     })();
-
     return () => {
       alive = false;
     };
@@ -102,183 +88,153 @@ export default function ProjectDetail() {
 
   const title = useMemo(() => {
     if (!data) return `Project #${id}`;
-    return data.name || `Project #${id}`;
+    return (data as any).name || `Project #${id}`;
   }, [data, id]);
 
   const customerId = (data as any)?.customer as number | null | undefined;
   const customerName = (data as any)?.customer_name as string | null | undefined;
-
   const canLogSale = Boolean((data as any)?.can_log_sale);
-  const stageName = (data as any)?.current_stage_name || "—";
-  const stationName = (data as any)?.station_name || "—";
-  const isCompleted = Boolean((data as any)?.is_completed);
+  const stageName = (data as any)?.current_stage_name || (data as any)?.current_stage || "—";
 
   return (
     <>
-      <h3 className="mb-3">{title}</h3>
+      <h3>{title}</h3>
 
       <Button variant="link" className="p-0 mb-3" onClick={() => history.back()}>
-        &larr; Back
+        ← Back
       </Button>
 
-      {loading && (
+      {loading ? (
         <div className="d-flex align-items-center gap-2">
-          <Spinner animation="border" size="sm" />
-          <span>Loading…</span>
+          <Spinner animation="border" size="sm" /> <span>Loading…</span>
         </div>
-      )}
+      ) : err ? (
+        <div>{err}</div>
+      ) : !data ? (
+        <div>Not found.</div>
+      ) : (
+        <>
+          <Card className="mb-4">
+            <Card.Body>
+              <Row className="align-items-start">
+                <Col md={8}>
+                  <h4 className="mb-2">{(data as any).name}</h4>
 
-      {err && <div className="text-danger">{err}</div>}
+                  {(data as any).reference_code ? (
+                    <div className="text-muted mb-2">Ref: {(data as any).reference_code}</div>
+                  ) : null}
 
-      {!loading && !err && data && (
-        <Row className="g-3">
-          <Col lg={6}>
-            <Card>
-              <Card.Body>
-                <div className="d-flex align-items-start justify-content-between gap-3">
-                  <div>
-                    <h4 className="mb-1">{data.name}</h4>
-                    {data.reference_code ? (
-                      <div className="text-muted">Ref: {data.reference_code}</div>
-                    ) : null}
-                  </div>
-
-                  <div className="d-flex gap-2 align-items-center flex-wrap">
-                    {/* Stage is primary truth */}
-                    <Badge bg={isCompleted ? "success" : "primary"}>{stageName}</Badge>
-
-                    {/* Status is secondary / legacy */}
-                    <Badge bg="secondary">{data.status}</Badge>
-
+                  <div className="mb-3">
+                    <Badge bg="primary" className="me-2">
+                      {(data as any).status}
+                    </Badge>
                     {(data as any).priority ? (
-                      <Badge bg="info">{(data as any).priority}</Badge>
+                      <Badge bg="warning" text="dark">
+                        {(data as any).priority}
+                      </Badge>
                     ) : null}
-
-                    <Button
-                      size="sm"
-                      variant={canLogSale ? "success" : "outline-secondary"}
-                      disabled={!canLogSale}
-                      className="px-2"
-                      aria-label="Log sale"
-                      title={
-                        canLogSale
-                          ? "Log sale"
-                          : `Sale logging is disabled at this stage (${stageName}).`
-                      }
-                      onClick={() => {
-                        // Soft action only: wiring point for Sales later
-                        alert("Log Sale is not implemented yet. (Gate is working ✅)");
-                      }}
-                    >
-                      <i className="bi bi-currency-dollar" />
-                    </Button>
                   </div>
-                </div>
 
-                <Row className="mt-3 g-2">
-                  <Col sm={6}>
-                    <div className="text-muted">Due</div>
-                    <div>{formatDate((data as any).due_date)}</div>
-                  </Col>
+                  <div className="text-muted">
+                    Stage: <strong>{stageName}</strong>
+                  </div>
+                </Col>
 
-                  <Col sm={6}>
-                    <div className="text-muted">Station</div>
-                    <div>{stationName}</div>
-                  </Col>
+                <Col md={4} className="text-md-end mt-3 mt-md-0">
+                  <Button
+                    variant={canLogSale ? "outline-primary" : "outline-secondary"}
+                    disabled={!canLogSale}
+                    onClick={() => alert("Log Sale is not implemented yet. (Gate is working ✅)")}
+                  >
+                    Log Sale
+                  </Button>
+                </Col>
+              </Row>
 
-                  <Col sm={6}>
-                    <div className="text-muted">Assigned To</div>
-                    <div>
-                      {(data as any).assigned_to ? (
-                        <Link to={`/employees/${(data as any).assigned_to}`}>
-                          {(data as any).assigned_to_name || "Employee"}
-                        </Link>
-                      ) : (
-                        "—"
-                      )}
-                    </div>
-                  </Col>
+              <Row className="mt-4">
+                <Col md={3}>
+                  <div className="text-muted">Due</div>
+                  <div>{formatDate((data as any).due_date)}</div>
+                </Col>
+                <Col md={3}>
+                  <div className="text-muted">Assigned To</div>
+                  <div>
+                    {(data as any).assigned_to ? (
+                      <span>{(data as any).assigned_to_name || "Employee"}</span>
+                    ) : (
+                      "—"
+                    )}
+                  </div>
+                </Col>
+                <Col md={3}>
+                  <div className="text-muted">Customer</div>
+                  <div>
+                    {customerId ? (
+                      <Link to={`/customers/${customerId}`}>{customerName || "Customer"}</Link>
+                    ) : (
+                      "—"
+                    )}
+                  </div>
+                </Col>
+                <Col md={3}>
+                  <div className="text-muted">Description</div>
+                  <div>{(data as any).description || "—"}</div>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
 
-                  <Col sm={6}>
-                    <div className="text-muted">Customer</div>
-                    <div>
-                      {customerId ? (
-                        <Link to={`/customers/${customerId}`}>{customerName || "Customer"}</Link>
-                      ) : (
-                        "—"
-                      )}
-                    </div>
-                  </Col>
-
-                  <Col sm={12}>
-                    <div className="text-muted">Description</div>
-                    <div>{data.description || "—"}</div>
-                  </Col>
-                </Row>
-              </Card.Body>
-            </Card>
-          </Col>
+          {/* ✅ Tasks for this project */}
+          <TasksTable
+            title="Tasks for this project"
+            lockedParams={{ project: projectId }}
+            showStationFilter={true}
+            showStageFilter={true}
+            presetStorageKey={`makerfex.project.${projectId}.tasks.tablePresets`}
+          />
 
           {/* Related Projects */}
-          <Col lg={6}>
-            <Card>
-              <Card.Body>
-                <div className="d-flex align-items-center justify-content-between gap-3">
-                  <h5 className="mb-0">Related Projects</h5>
-                  {relatedLoading ? (
-                    <div className="d-flex align-items-center gap-2">
-                      <Spinner animation="border" size="sm" />
-                      <span className="text-muted">Loading…</span>
-                    </div>
-                  ) : null}
-                </div>
+          <h5 className="mt-4">Related Projects</h5>
 
-                {!customerId ? (
-                  <div className="text-muted mt-3">No customer assigned.</div>
-                ) : relatedErr ? (
-                  <div className="text-danger mt-3">{relatedErr}</div>
-                ) : !relatedLoading && related.length === 0 ? (
-                  <div className="text-muted mt-3">No other projects for this customer.</div>
-                ) : (
-                  <div className="mt-3">
-                    <Table striped bordered hover responsive size="sm" className="mb-0">
-                      <thead>
-                        <tr>
-                          <th>Project</th>
-                          <th>Stage</th>
-                          <th>Status</th>
-                          <th>Assigned To</th>
-                          <th>Due</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {related.map((p) => (
-                          <tr key={p.id}>
-                            <td>
-                              <Link to={`/projects/${p.id}`}>{p.name}</Link>
-                            </td>
-                            <td>{(p as any).current_stage_name ?? "—"}</td>
-                            <td>{p.status ?? "—"}</td>
-                            <td>
-                              {(p as any).assigned_to ? (
-                                <Link to={`/employees/${(p as any).assigned_to}`}>
-                                  {(p as any).assigned_to_name || "Employee"}
-                                </Link>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                            <td>{formatDate((p as any).due_date)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </Table>
-                  </div>
-                )}
+          {relatedLoading ? (
+            <div className="d-flex align-items-center gap-2">
+              <Spinner animation="border" size="sm" /> <span>Loading…</span>
+            </div>
+          ) : !customerId ? (
+            <div className="text-muted">No customer assigned.</div>
+          ) : relatedErr ? (
+            <div>{relatedErr}</div>
+          ) : related.length === 0 ? (
+            <div className="text-muted">No other projects for this customer.</div>
+          ) : (
+            <Card className="mt-2">
+              <Card.Body>
+                <Table responsive hover>
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Status</th>
+                      <th>Assigned To</th>
+                      <th>Due</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {related.map((p: any) => (
+                      <tr key={p.id}>
+                        <td>
+                          <Link to={`/projects/${p.id}`}>{p.name}</Link>
+                        </td>
+                        <td>{p.status ?? "—"}</td>
+                        <td>{p.assigned_to ? p.assigned_to_name || "Employee" : "—"}</td>
+                        <td>{formatDate(p.due_date)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
               </Card.Body>
             </Card>
-          </Col>
-        </Row>
+          )}
+        </>
       )}
     </>
   );
