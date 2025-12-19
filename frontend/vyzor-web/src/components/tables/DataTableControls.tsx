@@ -2,15 +2,16 @@
 // ============================================================================
 // Generic controls row for server-driven tables.
 // - Search input (left)
-// - Right-side control cluster (presets + save/clear + page size + counts)
-// - Optional presets dropdown with sectioned grouping:
-//   * Saved presets first (user-created)
-//   * Built-in presets second
-// - Optional Save Preset (modal) + Clear filters buttons
-// - Optional delete for saved presets (soft action)
+// - Optional inline slot after search (for page-specific filter selects)
+// - Right-side control cluster:
+//   * Presets dropdown (Saved + Built-in sections)
+//   * Save preset modal
+//   * Clear filters
+//   * Page size selector
+//   * Counts label
 // ============================================================================
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Dropdown, Form, Modal, Button } from "react-bootstrap";
 import type { TablePreset } from "./tablePresets";
 
@@ -21,6 +22,9 @@ export type DataTableControlsProps<P extends Record<string, any> = Record<string
   q: string;
   onQChange: (v: string) => void;
   searchPlaceholder?: string;
+
+  // Optional slot rendered after search (page-specific filters)
+  afterSearch?: ReactNode;
 
   // Page size
   pageSize: number;
@@ -102,6 +106,7 @@ export default function DataTableControls<P extends Record<string, any> = Record
     q,
     onQChange,
     searchPlaceholder = "Search…",
+    afterSearch,
     pageSize,
     onPageSizeChange,
     shownCountLabel,
@@ -171,6 +176,11 @@ export default function DataTableControls<P extends Record<string, any> = Record
           onChange={(e) => onQChange(e.target.value)}
         />
 
+        {/* Inline slot: page-specific filters */}
+        {afterSearch ? (
+          <div className="d-flex flex-wrap gap-2 align-items-center">{afterSearch}</div>
+        ) : null}
+
         {/* Right: Presets + Save/Clear + PageSize + Counts */}
         <div className="d-flex flex-wrap gap-2 align-items-center ms-auto">
           {presets && presets.length > 0 && onPresetChange && (
@@ -179,7 +189,7 @@ export default function DataTableControls<P extends Record<string, any> = Record
                 Presets{activePresetLabel ? `: ${activePresetLabel}` : ""}
               </Dropdown.Toggle>
 
-              <Dropdown.Menu style={{ minWidth: 260 }}>
+              <Dropdown.Menu style={{ minWidth: 280 }}>
                 {/* Saved section */}
                 {savedPresets.length > 0 && (
                   <>
