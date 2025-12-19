@@ -219,10 +219,8 @@ class StationViewSet(viewsets.ModelViewSet):
 
         # Optional backend filter (so presets work)
         is_active = parse_bool(self.request.query_params.get("is_active"))
-        if is_active in ("true", "True", "1"):
-            qs = qs.filter(is_active=True)
-        elif is_active in ("false", "False", "0"):
-            qs = qs.filter(is_active=False)
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active)
 
         return qs
 

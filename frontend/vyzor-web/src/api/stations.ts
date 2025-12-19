@@ -40,21 +40,28 @@ export type StationListResponse = {
   count?: number;
 };
 
+type DRFPaginated<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+};
+
 function unwrapList<T>(data: any): { items: T[]; count?: number } {
   if (Array.isArray(data)) return { items: data };
   if (data && Array.isArray(data.results)) return { items: data.results, count: data.count };
   if (data && Array.isArray(data.items)) return { items: data.items, count: data.count };
-  return { items: [] };
+  return { items: [], count: 0 };
 }
 
 const BASE = "accounts/stations/";
 
 export async function listStations(params?: Record<string, any>): Promise<StationListResponse> {
-  const res = await axiosClient.get(BASE, { params });
+  const res = await axiosClient.get<DRFPaginated<Station> | Station[] | StationListResponse>(BASE, { params });
   return unwrapList<Station>(res.data);
 }
 
 export async function getStation(id: number): Promise<StationDetail> {
-  const res = await axiosClient.get(`${BASE}${id}/`);
+  const res = await axiosClient.get<StationDetail>(`${BASE}${id}/`);
   return res.data;
 }
