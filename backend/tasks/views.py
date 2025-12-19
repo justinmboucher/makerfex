@@ -27,26 +27,28 @@ def parse_bool(val):
 class TaskViewSet(viewsets.ModelViewSet):
     """
     Tasks API (shop-scoped)
-    Contract:
+
+    Canonical server-driven table contract:
       ?q= (search)
       ?ordering= (sorting)
       ?page= / ?page_size= (pagination via global DRF settings)
 
-    Authoritative filters (optional, for presets):
-      ?status=todo,in_progress,blocked
+    Preset-friendly filters (authoritative):
+      ?status=todo,in_progress,blocked,done,cancelled
       ?project=<id>
       ?station=<id>
+      ?stage=<id>
       ?assignee=<employee_id>
-      ?stage=<workflow_stage_id>
       ?unassigned=1|0
       ?is_overdue=1|0
       ?due_before=YYYY-MM-DD
       ?due_after=YYYY-MM-DD
 
-    Non-destructive: DELETE disabled for now.
+    Non-destructive phase: DELETE disabled.
     """
     permission_classes = [IsAuthenticated]
     serializer_class = TaskSerializer
+    queryset = Task.objects.none()
 
     http_method_names = ["get", "post", "put", "patch", "head", "options"]
 
@@ -92,21 +94,21 @@ class TaskViewSet(viewsets.ModelViewSet):
             if parts:
                 qs = qs.filter(status__in=parts)
 
-        project = qp.get("project")
-        if project:
-            qs = qs.filter(project_id=project)
+        project_id = qp.get("project")
+        if project_id:
+            qs = qs.filter(project_id=project_id)
 
-        station = qp.get("station")
-        if station:
-            qs = qs.filter(station_id=station)
+        station_id = qp.get("station")
+        if station_id:
+            qs = qs.filter(station_id=station_id)
 
-        assignee = qp.get("assignee")
-        if assignee:
-            qs = qs.filter(assignee_id=assignee)
+        stage_id = qp.get("stage")
+        if stage_id:
+            qs = qs.filter(stage_id=stage_id)
 
-        stage = qp.get("stage")
-        if stage:
-            qs = qs.filter(stage_id=stage)
+        assignee_id = qp.get("assignee")
+        if assignee_id:
+            qs = qs.filter(assignee_id=assignee_id)
 
         unassigned = parse_bool(qp.get("unassigned"))
         if unassigned is True:
@@ -117,11 +119,12 @@ class TaskViewSet(viewsets.ModelViewSet):
         is_overdue = parse_bool(qp.get("is_overdue"))
         if is_overdue is not None:
             today = timezone.localdate()
-            # overdue = has due_date in past and not completed/cancelled
-            qs_overdue = qs.filter(due_date__isnull=False, due_date__lt=today).exclude(
-                status__in=["done", "cancelled"]
+            overdue_ids = (
+                qs.filter(due_date__isnull=False, due_date__lt=today)
+                  .exclude(status__in=["done", "cancelled"])
+                  .values_list("id", flat=True)
             )
-            qs = qs_overdue if is_overdue else qs.exclude(id__in=qs_overdue.values("id"))
+            qs = qs.filter(id__in=overdue_ids) if is_overdue else qs.exclude(id__in=overdue_ids)
 
         due_before = qp.get("due_before")
         if due_before:
@@ -135,9 +138,4 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         shop = get_shop_for_user(self.request.user)
-        # Enforce shop on create; also ensures tasks can't be created cross-tenant
         serializer.save(shop=shop)
-
-    def perform_update(self, serializer):
-        # Prevent changing shop via PATCH/PUT (even if serializer includes shop)
-        serializer.save()

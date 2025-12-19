@@ -5,6 +5,7 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 
 from accounts.utils import get_shop_for_user
+from rest_framework.filters import OrderingFilter
 from makerfex_backend.filters import QueryParamSearchFilter
 
 from .models import Workflow, WorkflowStage
