@@ -5,12 +5,13 @@
 // - Canonical server-driven table behavior (q, ordering, pagination)
 // - Presets (built-in + saved in localStorage), including extraParams
 // - Backend-authoritative filtering (no client-side counts math)
+// - Optional dropdown filters (Station / Stage / Status / Assigned)
 // - Read-only for now
 // ============================================================================
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Card, Form, Table } from "react-bootstrap";
 import { Link } from "react-router-dom";
-import { Button, Card, Table } from "react-bootstrap";
 
 import { useServerDataTable } from "../../hooks/useServerDataTable";
 import DataTableControls from "../tables/DataTableControls";
@@ -22,24 +23,33 @@ import {
 } from "../tables/tablePresets";
 
 import { listProjects, type Project } from "../../api/projects";
+import { listStations, type Station } from "../../api/stations";
+import { listWorkflowStages, type WorkflowStage } from "../../api/workflows";
+import { listEmployees, type Employee } from "../../api/employees";
 
 type ProjectsExtraParams = {
-  // canonical + backend filters
   status?: "active" | "on_hold" | "completed" | "cancelled";
   customer?: string | number;
   customer_id?: string | number;
+
   station?: string | number;
   station_id?: string | number;
+
   assigned_to?: string | number;
   assigned_to_id?: string | number;
+
   current_stage?: string | number;
   stage?: string | number;
+
   is_completed?: "true" | "false" | boolean;
   overdue?: "1" | "0" | boolean;
   vip?: "1" | "0" | boolean;
+
+  q?: string;
+  ordering?: string;
 };
 
-const STORAGE_KEY = "makerfex.tablepresets.projects";
+const DEFAULT_STORAGE_KEY = "makerfex.tablepresets.projects";
 
 const BUILTIN_PRESETS: TablePreset[] = [
   { key: "all", label: "All", params: {}, is_builtin: true },
@@ -78,6 +88,36 @@ function sortIndicator(ordering: string, field: string) {
   return "";
 }
 
+function pillClassForStatus(status?: string) {
+  switch (status) {
+    case "active":
+      return "bg-success-transparent text-success";
+    case "on_hold":
+      return "bg-warning-transparent text-warning";
+    case "completed":
+      return "bg-primary-transparent text-primary";
+    case "cancelled":
+      return "bg-danger-transparent text-danger";
+    default:
+      return "bg-light text-muted";
+  }
+}
+
+function pillClassForPriority(priority?: string) {
+  switch (priority) {
+    case "rush":
+      return "bg-danger-transparent text-danger";
+    case "high":
+      return "bg-warning-transparent text-warning";
+    case "normal":
+      return "bg-primary-transparent text-primary";
+    case "low":
+      return "bg-success-transparent text-success";
+    default:
+      return "bg-light text-muted";
+  }
+}
+
 export type ProjectsTableProps = {
   title?: string;
 
@@ -86,19 +126,46 @@ export type ProjectsTableProps = {
 
   // Override storage key if you want separate saved preset pools per context.
   presetStorageKey?: string;
+
+  // Optional filter toggles (mirror TasksTable pattern)
+  showStationFilter?: boolean;
+  showStageFilter?: boolean;
+  showStatusFilter?: boolean;
+  showAssigneeFilter?: boolean;
 };
 
 export default function ProjectsTable({
   title,
   lockedParams,
-  presetStorageKey,
+  presetStorageKey = DEFAULT_STORAGE_KEY,
+  showStationFilter = true,
+  showStageFilter = true,
+  showStatusFilter = true,
+  showAssigneeFilter = true,
 }: ProjectsTableProps) {
-  const storageKey = presetStorageKey || STORAGE_KEY;
-
+  // Saved presets
   const [savedPresets, setSavedPresets] = useState<TablePreset[]>(() =>
-    loadSavedPresets(storageKey)
+    loadSavedPresets(presetStorageKey)
   );
   const presets = useMemo(() => [...savedPresets, ...BUILTIN_PRESETS], [savedPresets]);
+
+  // Dropdown data
+  const [stations, setStations] = useState<Station[]>([]);
+  const [stages, setStages] = useState<WorkflowStage[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  // Local filter UI state (stored as extraParams via hook actions)
+  const [stationFilter, setStationFilter] = useState("");
+  const [stageFilter, setStageFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState("");
+
+// If locked, do not allow changing
+const stationLocked = lockedParams?.station != null && String(lockedParams.station) !== "";
+const stageLocked = lockedParams?.current_stage != null && String(lockedParams.current_stage) !== "";
+const assigneeLocked = lockedParams?.assigned_to != null && String(lockedParams.assigned_to) !== "";
+const statusLocked = lockedParams?.status != null; // no "" check
+
 
   const table = useServerDataTable<Project, ProjectsExtraParams>({
     presets,
@@ -106,14 +173,80 @@ export default function ProjectsTable({
     debounceMs: 250,
     initial: { pageSize: 25 },
     fetcher: async (params) => {
+      // Locked params always win
       const merged = cleanMerge(params as any, lockedParams as any);
-
       const res = await listProjects(merged);
       return { count: res.count ?? 0, results: res.items ?? [] };
     },
   });
 
   const { state, actions } = table;
+
+  // Load dropdown lists
+  useEffect(() => {
+    if (!showStationFilter || stationLocked) return;
+    let alive = true;
+    (async () => {
+      try {
+        const s = await listStations({ page: 1, page_size: 200, ordering: "name" } as any);
+        if (!alive) return;
+        setStations((s.items ?? []) as Station[]);
+      } catch {
+        if (!alive) return;
+        setStations([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [showStationFilter, stationLocked]);
+
+  useEffect(() => {
+    if (!showStageFilter || stageLocked) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await listWorkflowStages({ page: 1, page_size: 500, ordering: "workflow,order" } as any);
+        if (!alive) return;
+        setStages((r.items ?? []) as WorkflowStage[]);
+      } catch {
+        if (!alive) return;
+        setStages([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [showStageFilter, stageLocked]);
+
+  useEffect(() => {
+    if (!showAssigneeFilter || assigneeLocked) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await listEmployees({ page: 1, page_size: 300, ordering: "last_name,first_name" } as any);
+        if (!alive) return;
+        setEmployees((r.items ?? []) as Employee[]);
+      } catch {
+        if (!alive) return;
+        setEmployees([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [showAssigneeFilter, assigneeLocked]);
+
+  // Push dropdown UI → extraParams (Option B)
+  useEffect(() => {
+    actions.setExtraParams({
+      station: stationLocked ? undefined : (stationFilter || undefined),
+      current_stage: stageLocked ? undefined : (stageFilter || undefined),
+      status: statusLocked ? undefined : ((statusFilter as any) || undefined),
+      assigned_to: assigneeLocked ? undefined : (assigneeFilter || undefined),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stationFilter, stageFilter, statusFilter, assigneeFilter, stationLocked, stageLocked, statusLocked, assigneeLocked]);
 
   const shownLabel = state.loading
     ? "Loading…"
@@ -123,9 +256,7 @@ export default function ProjectsTable({
     {}) as ProjectsExtraParams;
 
   const saveParams = useMemo(() => {
-    // Save “effective” params: preset params + extraParams + lockedParams,
-    // plus current q/ordering (so saved presets round-trip exactly).
-    const out: Record<string, any> = {
+    const out: ProjectsExtraParams = {
       ...(currentPresetParams as any),
       ...(state.extraParams as any),
       ...(lockedParams as any),
@@ -136,22 +267,23 @@ export default function ProjectsTable({
     if (state.ordering) out.ordering = state.ordering;
 
     // Never persist paging in presets
-    delete out.page;
-    delete out.page_size;
+    delete (out as any).page;
+    delete (out as any).page_size;
 
-    // Remove empties
+    // Clean empties
     Object.keys(out).forEach((k) => {
-      if (out[k] === undefined || out[k] === null || out[k] === "") delete out[k];
+      const v = (out as any)[k];
+      if (v === undefined || v === null || v === "") delete (out as any)[k];
     });
 
-    return out as ProjectsExtraParams;
+    return out;
   }, [currentPresetParams, state.extraParams, state.q, state.ordering, lockedParams]);
 
   function handleSavePreset(label: string) {
     const key =
       (globalThis.crypto?.randomUUID?.() as string | undefined) ?? `preset_${Date.now()}`;
 
-    const { next, error } = addSavedPreset(storageKey, savedPresets, {
+    const { next, error } = addSavedPreset(presetStorageKey, savedPresets, {
       key,
       label,
       params: saveParams,
@@ -170,13 +302,16 @@ export default function ProjectsTable({
     const yes = window.confirm("Delete this saved preset?");
     if (!yes) return;
 
-    const next = deleteSavedPreset(storageKey, savedPresets, key);
+    const next = deleteSavedPreset(presetStorageKey, savedPresets, key);
     setSavedPresets(next);
 
     if (state.activePresetKey === key) actions.applyPreset("all");
   }
 
   const canDeletePreset = (key: string) => !BUILTIN_PRESETS.some((p) => p.key === key);
+
+  const anyLocalFilters =
+    !!stationFilter || !!stageFilter || !!statusFilter || !!assigneeFilter;
 
   return (
     <>
@@ -192,7 +327,13 @@ export default function ProjectsTable({
         presets={presets}
         activePresetKey={state.activePresetKey}
         onPresetChange={(key) => actions.applyPreset(key)}
-        onClearFilters={() => actions.clearFilters()}
+        onClearFilters={() => {
+          actions.clearFilters();
+          setStationFilter("");
+          setStageFilter("");
+          setStatusFilter("");
+          setAssigneeFilter("");
+        }}
         onSavePreset={(label) => handleSavePreset(label)}
         onDeletePreset={(key) => handleDeletePreset(key)}
         canDeletePreset={canDeletePreset}
@@ -200,13 +341,101 @@ export default function ProjectsTable({
         savePresetLabel="Preset name"
       />
 
+      {/* Inline filter row (mirrors TasksTable pattern) */}
+      {(showStationFilter && !stationLocked) ||
+      (showStageFilter && !stageLocked) ||
+      (showStatusFilter && !statusLocked) ||
+      (showAssigneeFilter && !assigneeLocked) ? (
+        <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
+          {showStationFilter && !stationLocked ? (
+            <Form.Select
+              value={stationFilter}
+              onChange={(e) => setStationFilter(e.target.value)}
+              style={{ width: 220 }}
+              aria-label="Filter by station"
+            >
+              <option value="">All stations</option>
+              {stations.map((s) => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.name}
+                </option>
+              ))}
+            </Form.Select>
+          ) : null}
+
+          {showStageFilter && !stageLocked ? (
+            <Form.Select
+              value={stageFilter}
+              onChange={(e) => setStageFilter(e.target.value)}
+              style={{ width: 220 }}
+              aria-label="Filter by stage"
+            >
+              <option value="">All stages</option>
+              {stages.map((st) => (
+                <option key={st.id} value={String(st.id)}>
+                  {st.name}
+                </option>
+              ))}
+            </Form.Select>
+          ) : null}
+
+          {showStatusFilter && !statusLocked ? (
+            <Form.Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{ width: 180 }}
+              aria-label="Filter by status"
+            >
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="on_hold">On hold</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </Form.Select>
+          ) : null}
+
+          {showAssigneeFilter && !assigneeLocked ? (
+            <Form.Select
+              value={assigneeFilter}
+              onChange={(e) => setAssigneeFilter(e.target.value)}
+              style={{ width: 220 }}
+              aria-label="Filter by assignee"
+            >
+              <option value="">All assignees</option>
+              {employees.map((emp) => (
+                <option key={emp.id} value={String(emp.id)}>
+                  {(emp.display_name && emp.display_name.trim()) ||
+                    `${emp.last_name}, ${emp.first_name}`}
+                </option>
+              ))}
+            </Form.Select>
+          ) : null}
+
+          {anyLocalFilters ? (
+            <Button
+              size="sm"
+              variant="outline-secondary"
+              onClick={() => {
+                setStationFilter("");
+                setStageFilter("");
+                setStatusFilter("");
+                setAssigneeFilter("");
+                actions.clearExtraParams();
+              }}
+            >
+              Clear
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       {state.error ? (
         <div className="alert alert-danger mt-3 mb-0">{state.error}</div>
       ) : (
         <Card className="mt-3">
           <Card.Body className="p-0">
             <div className="table-responsive">
-              <Table hover className="mb-0">
+              <Table hover striped className="mb-0">
                 <thead>
                   <tr>
                     <th
@@ -241,9 +470,7 @@ export default function ProjectsTable({
                     </th>
                     <th
                       style={{ cursor: "pointer" }}
-                      onClick={() =>
-                        actions.setOrdering(toggleOrdering(state.ordering, "status"))
-                      }
+                      onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "status"))}
                     >
                       Status{sortIndicator(state.ordering, "status")}
                     </th>
@@ -278,54 +505,123 @@ export default function ProjectsTable({
                 <tbody>
                   {state.loading ? (
                     <tr>
-                      <td colSpan={8} className="py-4 text-center">
+                      <td colSpan={9} className="py-4 text-center">
                         Loading…
                       </td>
                     </tr>
                   ) : state.items.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-4 text-center">
+                      <td colSpan={9} className="py-4 text-center">
                         No projects found.
                       </td>
                     </tr>
                   ) : (
                     state.items.map((p) => (
                       <tr key={p.id}>
-                        <td className="fw-semibold">{p.name || `Project #${p.id}`}</td>
-                        <td>{p.customer_name || "—"}</td>
-                        <td>{p.station_name || "—"}</td>
-                        <td>{p.current_stage_name || "—"}</td>
-                        <td>{p.status}</td>
-                        <td>{p.priority}</td>
+                        <td>
+                        <div className="d-flex align-items-center gap-2">
+                            <div
+                            className="rounded bg-light flex-shrink-0"
+                            style={{
+                                width: 34,
+                                height: 34,
+                                overflow: "hidden",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}
+                            >
+                            {p.photo_url ? (
+                                <img
+                                src={p.photo_url}
+                                alt=""
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
+                            ) : (
+                                // fallback placeholder (keeps row height stable)
+                                <div style={{ width: "100%", height: "100%" }} />
+                            )}
+                            </div>
+
+                            <div className="min-w-0">
+                            <div className="fw-semibold text-truncate">
+                                <Link to={`/projects/${p.id}`} className="text-decoration-none">
+                                    {p.name || `Project #${p.id}`}
+                                </Link>
+                            </div>
+                            <div className="text-muted small">
+                                Ref: {p.reference_code || "—"}
+                            </div>
+                            </div>
+                        </div>
+                        </td>
+                        <td>
+                            {p.customer && p.customer_name ? (
+                                <Link to={`/customers/${p.customer}`} className="text-decoration-none">
+                                {p.customer_name}
+                                </Link>
+                            ) : (
+                                p.customer_name || "—"
+                            )}
+                        </td>
+                        <td>
+                            {p.station && p.station_name ? (
+                                <Link to={`/stations/${p.station}`} className="text-decoration-none">
+                                {p.station_name}
+                                </Link>
+                            ) : (
+                                p.station_name || "—"
+                            )}
+                        </td>
+                        <td>
+                            {p.current_stage_name ? (
+                                <span className="badge bg-secondary-transparent">
+                                {p.current_stage_name}
+                                </span>
+                            ) : (
+                                "—"
+                            )}
+                        </td>
+                        <td>
+                            <span className={`badge ${pillClassForStatus(p.status)}`}>
+                                {p.status}
+                            </span>
+                        </td>
+                        <td>
+                            <span className={`badge ${pillClassForPriority(p.priority)}`}>
+                                {p.priority}
+                            </span>
+                        </td>
                         <td>{p.due_date || "—"}</td>
                         <td>{p.assigned_to_name || "—"}</td>
                         <td className="text-nowrap">
-                            <div className="d-flex gap-2 justify-content-end">
+                            <div className="d-flex gap-2">
                                 <Button
-                                size="sm"
-                                variant="outline-success"
-                                disabled={!Boolean((p as any).can_log_sale)}
-                                onClick={() =>
-                                    alert("Log Sale is not implemented yet. (Gate is working ✅)")
-                                }
-                                title={
-                                    Boolean((p as any).can_log_sale)
-                                    ? "Log a sale"
-                                    : "Complete the final stage to enable"
-                                }
-                                >
-                                Log Sale
+                                    size="sm"
+                                    variant="outline-success"
+                                    className="btn-icon"
+                                    disabled={!Boolean((p as any).can_log_sale)}
+                                    onClick={() => alert("Log Sale is not implemented yet. (Gate is working ✅)")}
+                                    title={
+                                        Boolean((p as any).can_log_sale)
+                                        ? "Log sale"
+                                        : "Complete the final stage to enable"
+                                    }
+                                    >
+                                    <i className="ri-shopping-bag-3-line" />
                                 </Button>
 
                                 <Button
-                                as={Link as any}
-                                to={`/projects/${p.id}`}
-                                size="sm"
-                                variant="outline-primary"
-                                >
-                                View
+                                    as={Link as any}
+                                    to={`/projects/${p.id}`}
+                                    size="sm"
+                                    variant="outline-primary"
+                                    className="btn-icon"
+                                    title="View project"
+                                    >
+                                    <i className="ri-eye-line" />
                                 </Button>
-                            </div>
+                          </div>
                         </td>
                       </tr>
                     ))
