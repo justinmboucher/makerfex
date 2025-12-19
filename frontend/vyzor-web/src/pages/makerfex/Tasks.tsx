@@ -7,31 +7,35 @@
 // - ?ordering= sorting
 // - ?page= / ?page_size= pagination
 // - Presets (Saved + Built-in) are param bundles (backend authoritative)
+// - Option B: station/stage filters via useServerDataTable extraParams actions
 // ============================================================================
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Card, Table } from "react-bootstrap";
 
 import { listTasks, type Task } from "../../api/tasks";
+import { listStations, type Station } from "../../api/stations";
+import { listWorkflowStages, type WorkflowStage } from "../../api/workflows";
+
 import { useServerDataTable } from "../../hooks/useServerDataTable";
 import DataTableControls from "../../components/tables/DataTableControls";
 import {
   addSavedPreset,
-  loadSavedPresets,
   deleteSavedPreset,
+  loadSavedPresets,
   type TablePreset,
 } from "../../components/tables/tablePresets";
 
 type TaskPresetParams = {
-  status?: string;            // comma-separated
+  status?: string; // comma-separated
   project?: string | number;
   station?: string | number;
   stage?: string | number;
   assignee?: string | number;
   unassigned?: "1" | "0";
   is_overdue?: "1" | "0";
-  due_before?: string;        // YYYY-MM-DD
-  due_after?: string;         // YYYY-MM-DD
+  due_before?: string; // YYYY-MM-DD
+  due_after?: string; // YYYY-MM-DD
   q?: string;
   ordering?: string;
 };
@@ -43,14 +47,29 @@ const BUILTIN_PRESETS: TablePreset[] = [
 
   // Status buckets (backend filters are authoritative)
   { key: "todo", label: "To do", params: { status: "todo" }, is_builtin: true },
-  { key: "in_progress", label: "In progress", params: { status: "in_progress" }, is_builtin: true },
+  {
+    key: "in_progress",
+    label: "In progress",
+    params: { status: "in_progress" },
+    is_builtin: true,
+  },
   { key: "blocked", label: "Blocked", params: { status: "blocked" }, is_builtin: true },
   { key: "done", label: "Done", params: { status: "done" }, is_builtin: true },
-  { key: "cancelled", label: "Cancelled", params: { status: "cancelled" }, is_builtin: true },
+  {
+    key: "cancelled",
+    label: "Cancelled",
+    params: { status: "cancelled" },
+    is_builtin: true,
+  },
 
   // Operational filters
   { key: "overdue", label: "Overdue", params: { is_overdue: "1" }, is_builtin: true },
-  { key: "unassigned", label: "Unassigned", params: { unassigned: "1" }, is_builtin: true },
+  {
+    key: "unassigned",
+    label: "Unassigned",
+    params: { unassigned: "1" },
+    is_builtin: true,
+  },
 ];
 
 function toggleOrdering(current: string, nextField: string): string {
@@ -82,10 +101,16 @@ export default function Tasks() {
     loadSavedPresets(PRESET_STORAGE_KEY)
   );
 
+  // Filter dropdown data
+  const [stations, setStations] = useState<Station[]>([]);
+  const [stages, setStages] = useState<WorkflowStage[]>([]);
+  const [stationFilter, setStationFilter] = useState<string>("");
+  const [stageFilter, setStageFilter] = useState<string>("");
+
   // Saved (top) then Built-in (below)
   const presets = useMemo(() => [...savedPresets, ...BUILTIN_PRESETS], [savedPresets]);
 
-  const table = useServerDataTable({
+  const table = useServerDataTable<Task, TaskPresetParams>({
     presets,
     defaultPresetKey: "all",
     debounceMs: 250,
@@ -93,9 +118,45 @@ export default function Tasks() {
       const data = await listTasks(params as any);
       return { count: data.count ?? 0, results: data.items ?? [] };
     },
+    initial: {
+      pageSize: 25,
+      extraParams: {}, // allow future default filters if needed
+    },
   });
 
   const { state, actions } = table;
+
+  // Load stations/stages once
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await listStations({ page: 1, page_size: 200, ordering: "name" } as any);
+        setStations((s.items ?? []) as Station[]);
+      } catch {
+        setStations([]);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await listWorkflowStages({ page: 1, page_size: 500, ordering: "workflow,order" } as any);
+        setStages((r.items ?? []) as WorkflowStage[]);
+      } catch {
+        setStages([]);
+      }
+    })();
+  }, []);
+
+  // Push dropdown filters into Option B extraParams
+  useEffect(() => {
+    actions.setExtraParams({
+      station: stationFilter || undefined,
+      stage: stageFilter || undefined,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stationFilter, stageFilter]);
 
   const shownLabel = state.loading
     ? "Loading…"
@@ -104,8 +165,12 @@ export default function Tasks() {
   const currentPresetParams =
     (presets.find((p) => p.key === state.activePresetKey)?.params ?? {}) as TaskPresetParams;
 
+  // Include extraParams in saved preset values (so “save preset” captures station/stage)
   const saveParams = useMemo(() => {
-    const out: TaskPresetParams = { ...(currentPresetParams as any) };
+    const out: TaskPresetParams = {
+      ...(currentPresetParams as any),
+      ...(state.extraParams as any),
+    };
 
     const qTrim = state.q.trim();
     if (qTrim) out.q = qTrim;
@@ -115,7 +180,7 @@ export default function Tasks() {
     delete (out as any).page_size;
 
     return out;
-  }, [currentPresetParams, state.q, state.ordering]);
+  }, [currentPresetParams, state.extraParams, state.q, state.ordering]);
 
   function handleSavePreset(label: string) {
     const key =
@@ -162,14 +227,66 @@ export default function Tasks() {
         presets={presets}
         activePresetKey={state.activePresetKey}
         onPresetChange={(key) => actions.applyPreset(key)}
-        onClearFilters={() => actions.clearFilters()}
+        onClearFilters={() => {
+          // Clear table state + preset + extra params + dropdown UI
+          actions.clearFilters();
+          setStationFilter("");
+          setStageFilter("");
+        }}
         onSavePreset={(label) => handleSavePreset(label)}
         onDeletePreset={(key) => handleDeletePreset(key)}
         canDeletePreset={canDeletePreset}
       />
 
+      {/* Workflow-by-station filters (Option B: extraParams) */}
+      <div className="d-flex gap-2 justify-content-end mt-2">
+        <div style={{ minWidth: 220 }}>
+          <select
+            className="form-select form-select-sm"
+            value={stationFilter}
+            onChange={(e) => setStationFilter(e.target.value)}
+          >
+            <option value="">All stations</option>
+            {stations.map((s) => (
+              <option key={s.id} value={String(s.id)}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ minWidth: 240 }}>
+          <select
+            className="form-select form-select-sm"
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+          >
+            <option value="">All stages</option>
+            {stages.map((st) => (
+              <option key={st.id} value={String(st.id)}>
+                {st.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {(stationFilter || stageFilter) && (
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={() => {
+              setStationFilter("");
+              setStageFilter("");
+              actions.clearExtraParams();
+            }}
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+
       {state.error ? (
-        <div>{state.error}</div>
+        <div className="mt-3">{state.error}</div>
       ) : (
         <Card className="mt-3">
           <Card.Body>
