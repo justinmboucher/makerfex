@@ -3,6 +3,8 @@
 // Makerfex Stations API (Frontend)
 // ----------------------------------------------------------------------------
 // Read-only usage for now (list + detail).
+// Supports server-driven table contract params:
+// - q, ordering, page, page_size, plus backend filters (e.g. is_active)
 // ============================================================================
 
 import axiosClient from "./axiosClient";
@@ -33,16 +35,22 @@ export type StationDetail = Station & {
   employees_detail?: StationEmployeeMini[];
 };
 
+export type StationListResponse = {
+  items: Station[];
+  count?: number;
+};
+
 function unwrapList<T>(data: any): { items: T[]; count?: number } {
   if (Array.isArray(data)) return { items: data };
   if (data && Array.isArray(data.results)) return { items: data.results, count: data.count };
+  if (data && Array.isArray(data.items)) return { items: data.items, count: data.count };
   return { items: [] };
 }
 
 const BASE = "accounts/stations/";
 
-export async function listStations(params?: Record<string, any>) {
-  const res = await axiosClient.get<Station[] | any>(BASE, { params });
+export async function listStations(params?: Record<string, any>): Promise<StationListResponse> {
+  const res = await axiosClient.get(BASE, { params });
   return unwrapList<Station>(res.data);
 }
 
