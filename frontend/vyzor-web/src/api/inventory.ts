@@ -1,10 +1,10 @@
 // src/api/inventory.ts
 // ============================================================================
-// Makerfex Inventory API (Frontend)
+// Makerfex Inventory API
 // ----------------------------------------------------------------------------
-// Supports canonical server-driven table contract params:
+// Canonical server-driven list params:
 // - q, ordering, page, page_size
-// Plus inventory filters:
+// Inventory filters:
 // - is_active, low_stock, preferred_station (optional)
 // ============================================================================
 
@@ -12,9 +12,8 @@ import axiosClient from "./axiosClient";
 
 export type InventoryBase = {
   id: number;
-  shop: number;
   image: string | null;
-  image_url: string | null;
+  image_url?: string | null;
   name: string;
   sku: string;
   description: string;
@@ -36,7 +35,12 @@ export type Equipment = InventoryBase & {
   warranty_expiration: string | null;
 };
 
-type DRFPaginated<T> = { count: number; next: string | null; previous: string | null; results: T[] };
+type DRFPaginated<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+};
 
 function unwrapList<T>(data: any): { items: T[]; count?: number } {
   if (Array.isArray(data)) return { items: data };
@@ -45,23 +49,21 @@ function unwrapList<T>(data: any): { items: T[]; count?: number } {
   return { items: [], count: 0 };
 }
 
-// NOTE: Adjust BASE paths if your router differs.
-// These are consistent with tasks using "tasks/tasks/" :contentReference[oaicite:2]{index=2}
 const BASE_MATERIALS = "inventory/materials/";
 const BASE_CONSUMABLES = "inventory/consumables/";
 const BASE_EQUIPMENT = "inventory/equipment/";
 
-export async function listMaterials(params?: Record<string, any>): Promise<{ items: Material[]; count?: number }> {
+export async function listMaterials(params?: Record<string, any>) {
   const res = await axiosClient.get<DRFPaginated<Material> | Material[]>(BASE_MATERIALS, { params });
   return unwrapList<Material>(res.data);
 }
 
-export async function listConsumables(params?: Record<string, any>): Promise<{ items: Consumable[]; count?: number }> {
+export async function listConsumables(params?: Record<string, any>) {
   const res = await axiosClient.get<DRFPaginated<Consumable> | Consumable[]>(BASE_CONSUMABLES, { params });
   return unwrapList<Consumable>(res.data);
 }
 
-export async function listEquipment(params?: Record<string, any>): Promise<{ items: Equipment[]; count?: number }> {
+export async function listEquipment(params?: Record<string, any>) {
   const res = await axiosClient.get<DRFPaginated<Equipment> | Equipment[]>(BASE_EQUIPMENT, { params });
   return unwrapList<Equipment>(res.data);
 }
