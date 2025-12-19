@@ -21,9 +21,12 @@ export type PaginatedCustomers = {
 
 export type ListCustomersParams = {
   q?: string;
-  ordering?: string; // e.g. "last_name" or "-created_at"
+  ordering?: string;
   page?: number;
   page_size?: number;
+
+  // future-friendly: backend filters (keep frontend thin)
+  vip?: 1;
 };
 
 export async function listCustomers(params: ListCustomersParams = {}): Promise<PaginatedCustomers> {
@@ -35,3 +38,4 @@ export async function getCustomer(id: number): Promise<Customer> {
   const res = await axiosClient.get(`/customers/${id}/`);
   return res.data;
 }
+

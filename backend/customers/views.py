@@ -49,7 +49,14 @@ class CustomerViewSet(viewsets.ModelViewSet):
         shop = get_shop_for_user(self.request.user)
         if not shop:
             return Customer.objects.none()
-        return Customer.objects.filter(shop=shop)
+
+        qs = Customer.objects.filter(shop=shop)
+
+        vip = self.request.query_params.get("vip")
+        if vip == "1":
+            qs = qs.filter(is_vip=True)
+
+        return qs
 
     def perform_create(self, serializer):
         shop = get_shop_for_user(self.request.user)
