@@ -25,6 +25,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "shop",
             "customer",
             "customer_name",
+            "product_template",
             "photo",
             "photo_url",
             "name",
