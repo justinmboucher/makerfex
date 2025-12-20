@@ -21,6 +21,10 @@ import {
 
 import { listProductTemplates, type ProductTemplate } from "../../api/products";
 
+function pillClass(base: "success" | "warning" | "danger" | "primary" | "secondary" | "info") {
+  return `bg-${base}-transparent text-${base}`;
+}
+
 type ProductPresetParams = {
   q?: string;
   ordering?: string;
@@ -122,51 +126,97 @@ export default function ProductsTable() {
             <Table hover className="mb-0">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Slug</th>
-                  <th>Base price</th>
-                  <th>Est. hours</th>
-                  <th>Workflow</th>
-                  <th>Status</th>
+                  <th>Template</th>
+                  <th className="text-end">Base price</th>
+                  <th className="text-end">Est. hours</th>
+                  <th>Updated</th>
                 </tr>
               </thead>
-
               <tbody>
                 {state.loading ? (
                   <tr>
-                    <td colSpan={6} className="py-4 text-center">
+                    <td colSpan={4} className="py-4 text-center">
                       Loading…
                     </td>
                   </tr>
                 ) : state.items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-4 text-center">
+                    <td colSpan={4} className="py-4 text-center">
                       No product templates found.
                     </td>
                   </tr>
                 ) : (
-                  state.items.map((p) => (
-                    <tr key={p.id}>
-                      <td className="fw-semibold">{p.name}</td>
-                      <td className="text-muted">{p.slug}</td>
-                      <td>{p.base_price ?? "—"}</td>
-                      <td>{p.estimated_hours ?? "—"}</td>
-                      <td>{p.default_workflow_name ?? "—"}</td>
-                      <td>
-                        <span
-                          className={`badge ${
-                            p.is_active
-                              ? "bg-success-transparent text-success"
-                              : "bg-danger-transparent text-danger"
-                          }`}
-                        >
-                          {p.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                  state.items.map((p) => {
+                    const photoSrc = (p.photo_url ?? (p as any).image_url ?? p.photo) || null;
+
+                    return (
+                      <tr key={p.id}>
+                        <td>
+                          <div className="d-flex align-items-center gap-2">
+                            {/* Photo */}
+                            <div
+                              className="rounded bg-light flex-shrink-0"
+                              style={{
+                                width: 34,
+                                height: 34,
+                                overflow: "hidden",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {photoSrc ? (
+                                <img
+                                  src={photoSrc}
+                                  alt=""
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
+                              ) : (
+                                <div style={{ width: "100%", height: "100%" }} />
+                              )}
+                            </div>
+
+                            {/* Text + pills */}
+                            <div className="min-w-0">
+                              <div className="fw-semibold text-truncate">{p.name || `Template #${p.id}`}</div>
+
+                              <div className="d-flex flex-wrap align-items-center gap-2 small text-muted">
+                                {/* Slug pill */}
+                                {p.slug ? (
+                                  <span className={`badge ${pillClass("secondary")}`}>{p.slug}</span>
+                                ) : null}
+
+                                {/* Workflow pill */}
+                                {p.default_workflow_name ? (
+                                  <span className={`badge ${pillClass("info")}`}>{p.default_workflow_name}</span>
+                                ) : (
+                                  <span className={`badge ${pillClass("warning")}`}>No workflow</span>
+                                )}
+
+                                {/* Active pill */}
+                                <span
+                                  className={`badge ${
+                                    p.is_active ? pillClass("success") : pillClass("danger")
+                                  }`}
+                                >
+                                  {p.is_active ? "Active" : "Inactive"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="text-end">{p.base_price ?? "—"}</td>
+                        <td className="text-end">{p.estimated_hours ?? "—"}</td>
+                        <td className="text-muted">
+                          {p.updated_at ? new Date(p.updated_at).toLocaleDateString() : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
+
             </Table>
           </div>
         </Card.Body>
