@@ -4,6 +4,7 @@ from django.db import models
 from accounts.models import TimeStampedModel, Shop, Employee, Station
 from customers.models import Customer
 from workflows.models import Workflow, WorkflowStage
+from products.models import ProductTemplate
 
 
 def project_photo_upload_path(instance: "Project", filename: str) -> str:
@@ -39,6 +40,15 @@ class Project(TimeStampedModel):
     null=True,
     blank=True,
     related_name="projects",
+  )
+
+  product_template = models.ForeignKey(
+    ProductTemplate,
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name="projects",
+    help_text="Optional source ProductTemplate used to create this project (provenance).",
   )
 
   # NEW: optional project photo/hero image
