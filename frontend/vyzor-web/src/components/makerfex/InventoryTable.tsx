@@ -299,7 +299,7 @@ export default function InventoryTable({
                       Reorder{sortIndicator(state.ordering, "reorder_point")}
                     </th>
                     <th>Unit</th>
-                    <th
+                    <th className="text-end"
                       style={{ cursor: "pointer" }}
                       onClick={() =>
                         actions.setOrdering(toggleOrdering(state.ordering, "unit_cost"))
@@ -357,7 +357,7 @@ export default function InventoryTable({
                               </div>
 
                               <div className="d-flex flex-wrap align-items-center gap-2 small text-muted">
-                                <span>SKU: {row.sku || "—"}</span>
+                                <span className="text-muted">SKU {row.sku || "—"}</span>
 
                                 {/* Kind/type pill */}
                                 <span className={`badge ${pillClass("secondary")}`}>
@@ -384,10 +384,12 @@ export default function InventoryTable({
                             </div>
                           </div>
                         </td>
-                        <td>{row.quantity_on_hand ?? "—"}</td>
+                        <td className={stockState(row).lowStock ? "text-warning fw-semibold" : ""}>
+                          {row.quantity_on_hand ?? "—"}
+                        </td>
                         <td>{row.reorder_point ?? "—"}</td>
                         <td>{row.unit_of_measure || "—"}</td>
-                        <td>{row.unit_cost ?? "—"}</td>
+                        <td className="text-end">{row.unit_cost ?? "—"}</td>
                         <td>{kindFieldValue(kind, row)}</td>
                       </tr>
                     ))
