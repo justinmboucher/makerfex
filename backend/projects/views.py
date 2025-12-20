@@ -26,6 +26,10 @@ from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from accounts.models import Employee
 from accounts.utils import get_shop_for_user
@@ -33,6 +37,7 @@ from makerfex_backend.filters import QueryParamSearchFilter
 
 from projects.models import Project
 from projects.serializers import ProjectSerializer
+from products.models import ProductTemplate
 
 
 def _parse_bool(v):
@@ -170,3 +175,43 @@ class ProjectViewSet(viewsets.ModelViewSet):
             raise ValueError("Current user has no shop configured.")
         emp = self.get_employee(shop)
         serializer.save(shop=shop, created_by=emp)
+
+    
+    @action(detail=False, methods=["post"], url_path="create_from_template")
+    def create_from_template(self, request):
+        shop = self.get_shop()
+        if not shop:
+            raise ValidationError({"detail": "Current user has no shop configured."})
+
+        emp = self.get_employee(shop)
+
+        template_id = request.data.get("product_template_id")
+        if not template_id:
+            raise ValidationError({"product_template_id": "This field is required."})
+
+        try:
+            template = ProductTemplate.objects.select_related("default_workflow").get(
+                id=template_id,
+                shop=shop,
+            )
+        except ProductTemplate.DoesNotExist:
+            # Avoid cross-tenant leakage; treat as invalid input
+            raise ValidationError({"product_template_id": "Invalid template."})
+
+        if not getattr(template, "is_active", True):
+            raise ValidationError({"product_template_id": "Template is inactive."})
+
+        name = (request.data.get("name") or "").strip() or template.name
+
+        project = Project.objects.create(
+            shop=shop,
+            created_by=emp,
+            name=name,
+            product_template=template,
+            workflow=getattr(template, "default_workflow", None),
+            estimated_hours=getattr(template, "estimated_hours", None),
+        )
+
+        serializer = self.get_serializer(project)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
