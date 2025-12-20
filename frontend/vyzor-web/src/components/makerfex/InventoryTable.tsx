@@ -176,6 +176,11 @@ export default function InventoryTable({
     delete (out as any).page;
     delete (out as any).page_size;
 
+    Object.keys(out).forEach((k) => {
+      const v = (out as any)[k];
+      if (v === undefined || v === null || v === "") delete (out as any)[k];
+    });
+
     return out;
   }, [currentPresetParams, state.extraParams, state.q, state.ordering, lockedParams]);
 
