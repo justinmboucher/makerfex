@@ -147,7 +147,7 @@ export default function ProductsTable() {
                   </tr>
                 ) : (
                   state.items.map((p) => {
-                    const photoSrc = (p.photo_url ?? (p as any).image_url ?? p.photo) || null;
+                    const photoSrc = p.photo_url || null;
 
                     return (
                       <tr key={p.id}>
