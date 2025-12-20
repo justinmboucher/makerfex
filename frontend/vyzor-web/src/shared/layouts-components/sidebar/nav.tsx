@@ -598,6 +598,15 @@ export const MENUITEMS: any = [
     selected: false,
   },
 
+  {
+    title: "Products",
+    icon: <i className="ri-barcode-box-line side-menu__icon"></i>,
+    type: "link",
+    path: "/products",
+    active: false,
+    selected: false,
+  },
+
   // Optional dev tool (you can remove later)
   {
     title: "API Proof",
