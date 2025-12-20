@@ -106,6 +106,33 @@ function kindFieldValue(kind: InventoryKind, row: InventoryRow): string {
   return (row as Equipment).serial_number || "—";
 }
 
+function toNum(v: any): number {
+  if (v === undefined || v === null || v === "") return NaN;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function stockState(row: InventoryRow) {
+  const qty = toNum(row.quantity_on_hand);
+  const reorder = toNum(row.reorder_point);
+
+  const outOfStock = Number.isFinite(qty) && qty <= 0;
+  const lowStock =
+    !outOfStock &&
+    Number.isFinite(qty) &&
+    Number.isFinite(reorder) &&
+    reorder > 0 &&
+    qty <= reorder;
+
+  return { qty, reorder, outOfStock, lowStock };
+}
+
+function pillClass(base: "success" | "warning" | "danger" | "primary" | "secondary") {
+  // Vyzor “transparent badge” style
+  return `bg-${base}-transparent text-${base}`;
+}
+
+
 export type InventoryTableProps = {
   kind: InventoryKind;
   title?: string;
@@ -245,32 +272,19 @@ export default function InventoryTable({
         <Card className="mt-3">
           <Card.Body className="p-0">
             <div className="table-responsive">
-              <Table hover className="mb-0">
+              <Table hover striped className="mb-0">
                 <thead>
                   <tr>
                     <th
                       style={{ cursor: "pointer" }}
-                      onClick={() =>
-                        actions.setOrdering(toggleOrdering(state.ordering, "name"))
-                      }
+                      onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "name"))}
                     >
-                      Name{sortIndicator(state.ordering, "name")}
+                      Item{sortIndicator(state.ordering, "name")}
                     </th>
+
                     <th
                       style={{ cursor: "pointer" }}
-                      onClick={() =>
-                        actions.setOrdering(toggleOrdering(state.ordering, "sku"))
-                      }
-                    >
-                      SKU{sortIndicator(state.ordering, "sku")}
-                    </th>
-                    <th
-                      style={{ cursor: "pointer" }}
-                      onClick={() =>
-                        actions.setOrdering(
-                          toggleOrdering(state.ordering, "quantity_on_hand")
-                        )
-                      }
+                      onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "quantity_on_hand"))}
                     >
                       Qty{sortIndicator(state.ordering, "quantity_on_hand")}
                     </th>
@@ -294,41 +308,87 @@ export default function InventoryTable({
                       Unit cost{sortIndicator(state.ordering, "unit_cost")}
                     </th>
                     <th>{kindFieldLabel(kind)}</th>
-                    <th
-                      style={{ cursor: "pointer" }}
-                      onClick={() =>
-                        actions.setOrdering(toggleOrdering(state.ordering, "is_active"))
-                      }
-                    >
-                      Active{sortIndicator(state.ordering, "is_active")}
-                    </th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {state.loading ? (
                     <tr>
-                      <td colSpan={8} className="py-4 text-center">
+                      <td colSpan={6} className="py-4 text-center">
                         Loading…
                       </td>
                     </tr>
                   ) : state.items.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-4 text-center">
+                      <td colSpan={6} className="py-4 text-center">
                         No inventory items found.
                       </td>
                     </tr>
                   ) : (
                     state.items.map((row) => (
                       <tr key={row.id}>
-                        <td className="fw-semibold">{row.name || `Item #${row.id}`}</td>
-                        <td>{row.sku || "—"}</td>
+                        <td>
+                          <div className="d-flex align-items-center gap-2">
+                            <div
+                              className="rounded bg-light flex-shrink-0"
+                              style={{
+                                width: 34,
+                                height: 34,
+                                overflow: "hidden",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {row.image_url ? (
+                                <img
+                                  src={row.image_url}
+                                  alt=""
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
+                              ) : (
+                                <div style={{ width: "100%", height: "100%" }} />
+                              )}
+                            </div>
+
+                            <div className="min-w-0">
+                              <div className="fw-semibold text-truncate">
+                                {row.name || `Item #${row.id}`}
+                              </div>
+
+                              <div className="d-flex flex-wrap align-items-center gap-2 small text-muted">
+                                <span>SKU: {row.sku || "—"}</span>
+
+                                {/* Kind/type pill */}
+                                <span className={`badge ${pillClass("secondary")}`}>
+                                  {kind === "equipment" ? "Equipment" : kindFieldValue(kind, row)}
+                                </span>
+
+                                {/* Stock state pill (display-only) */}
+                                {(() => {
+                                  const s = stockState(row);
+                                  if (s.outOfStock) {
+                                    return <span className={`badge ${pillClass("danger")}`}>Out of stock</span>;
+                                  }
+                                  if (s.lowStock) {
+                                    return <span className={`badge ${pillClass("warning")}`}>Low stock</span>;
+                                  }
+                                  return null;
+                                })()}
+
+                                {/* Active pill */}
+                                <span className={`badge ${row.is_active ? pillClass("success") : pillClass("danger")}`}>
+                                  {row.is_active ? "Active" : "Inactive"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
                         <td>{row.quantity_on_hand ?? "—"}</td>
                         <td>{row.reorder_point ?? "—"}</td>
                         <td>{row.unit_of_measure || "—"}</td>
                         <td>{row.unit_cost ?? "—"}</td>
                         <td>{kindFieldValue(kind, row)}</td>
-                        <td>{row.is_active ? "Yes" : "No"}</td>
                       </tr>
                     ))
                   )}
