@@ -8,7 +8,8 @@
 // ============================================================================
 
 import { useMemo, useState } from "react";
-import { Card, Table } from "react-bootstrap";
+import { Button, Card, Form, Modal, Table } from "react-bootstrap";
+import { useNavigate } from "react-router-dom";
 
 import { useServerDataTable } from "../../hooks/useServerDataTable";
 import DataTableControls from "../tables/DataTableControls";
@@ -20,6 +21,8 @@ import {
 } from "../tables/tablePresets";
 
 import { listProductTemplates, type ProductTemplate } from "../../api/products";
+import { createProjectFromTemplate } from "../../api/projects";
+
 
 function pillClass(base: "success" | "warning" | "danger" | "primary" | "secondary" | "info") {
   return `bg-${base}-transparent text-${base}`;
@@ -72,6 +75,29 @@ export default function ProductsTable() {
 
   const { state, actions } = table;
 
+  const navigate = useNavigate();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createTemplate, setCreateTemplate] = useState<ProductTemplate | null>(null);
+  const [createName, setCreateName] = useState("");
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+    function openCreateProject(template: ProductTemplate) {
+    setCreateTemplate(template);
+    setCreateName(template.name || `Template #${template.id}`);
+    setCreateError(null);
+    setCreateOpen(true);
+  }
+
+  function closeCreateProject() {
+    if (createSubmitting) return;
+    setCreateOpen(false);
+    setCreateTemplate(null);
+    setCreateName("");
+    setCreateError(null);
+  }
+
   function handleSavePreset(label: string) {
     const key = crypto.randomUUID();
     const { next, error } = addSavedPreset(STORAGE_KEY, savedPresets, {
@@ -94,6 +120,45 @@ export default function ProductsTable() {
     const next = deleteSavedPreset(STORAGE_KEY, savedPresets, key);
     setSavedPresets(next);
     if (state.activePresetKey === key) actions.applyPreset("all");
+  }
+
+    async function submitCreateProject() {
+    if (!createTemplate) return;
+
+    const name = createName.trim();
+    if (!name) {
+      setCreateError("Project name is required.");
+      return;
+    }
+
+    setCreateSubmitting(true);
+    setCreateError(null);
+
+    try {
+      const project = await createProjectFromTemplate({
+        product_template_id: createTemplate.id,
+        name,
+      });
+
+      setCreateOpen(false);
+      setCreateTemplate(null);
+      setCreateName("");
+      setCreateSubmitting(false);
+
+      // Navigate to project detail (adjust path if your router differs)
+      navigate(`/makerfex/projects/${project.id}`);
+    } catch (err: any) {
+      // DRF typically returns {field: ["msg"]} or {detail: "..."}
+      const data = err?.response?.data;
+      const detail =
+        (typeof data?.detail === "string" && data.detail) ||
+        (typeof data?.product_template_id === "string" && data.product_template_id) ||
+        (Array.isArray(data?.product_template_id) ? data.product_template_id.join(" ") : null) ||
+        "Failed to create project from template.";
+
+      setCreateError(detail);
+      setCreateSubmitting(false);
+    }
   }
 
   return (
@@ -125,13 +190,14 @@ export default function ProductsTable() {
           <div className="table-responsive">
             <Table hover className="mb-0">
               <thead>
-                <tr>
-                  <th>Template</th>
-                  <th className="text-end">Base price</th>
-                  <th className="text-end">Est. hours</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
+                  <tr>
+                    <th>Template</th>
+                    <th className="text-end">Base price</th>
+                    <th className="text-end">Est. hours</th>
+                    <th>Updated</th>
+                    <th className="text-end" style={{ width: 1 }} />
+                  </tr>
+                </thead>
               <tbody>
                 {state.loading ? (
                   <tr>
@@ -211,6 +277,17 @@ export default function ProductsTable() {
                         <td className="text-muted">
                           {p.updated_at ? new Date(p.updated_at).toLocaleDateString() : "—"}
                         </td>
+                        <td className="text-end">
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            disabled={!p.is_active}
+                            onClick={() => openCreateProject(p)}
+                            title={p.is_active ? "Create a project from this template" : "Template is inactive"}
+                          >
+                            Create Project
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })
@@ -221,6 +298,40 @@ export default function ProductsTable() {
           </div>
         </Card.Body>
       </Card>
+      <Modal show={createOpen} onHide={closeCreateProject} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Create Project</Modal.Title>
+        </Modal.Header>
+
+        <Modal.Body>
+          <div className="text-muted small mb-2">
+            From template: <strong>{createTemplate?.name || "—"}</strong>
+          </div>
+
+          <Form.Group className="mb-2">
+            <Form.Label>Project name</Form.Label>
+            <Form.Control
+              value={createName}
+              onChange={(e) => setCreateName(e.target.value)}
+              disabled={createSubmitting}
+              autoFocus
+            />
+          </Form.Group>
+
+          {createError ? (
+            <div className="text-danger small mt-2">{createError}</div>
+          ) : null}
+        </Modal.Body>
+
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeCreateProject} disabled={createSubmitting}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={submitCreateProject} disabled={createSubmitting}>
+            {createSubmitting ? "Creating…" : "Create"}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </>
   );
 }

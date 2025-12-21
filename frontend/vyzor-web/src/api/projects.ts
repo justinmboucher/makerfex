@@ -78,3 +78,18 @@ export async function getProject(id: number): Promise<Project> {
   const res = await axiosClient.get<Project>(`/projects/${id}/`);
   return res.data;
 }
+
+export type CreateProjectFromTemplatePayload = {
+  product_template_id: number;
+  name?: string;
+};
+
+export async function createProjectFromTemplate(
+  payload: CreateProjectFromTemplatePayload
+): Promise<Project> {
+  const res = await axiosClient.post<Project>(
+    "/projects/create_from_template/",
+    payload
+  );
+  return res.data;
+}
