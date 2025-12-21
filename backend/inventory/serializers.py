@@ -2,6 +2,7 @@
 from rest_framework import serializers
 
 from .models import Material, Consumable, Equipment
+from inventory.models import InventoryTransaction
 
 
 class MaterialSerializer(serializers.ModelSerializer):
@@ -103,3 +104,23 @@ class EquipmentSerializer(serializers.ModelSerializer):
       url = obj.image.url
       return request.build_absolute_uri(url) if request else url
     return None
+
+
+class InventoryConsumeSerializer(serializers.Serializer):
+    inventory_type = serializers.ChoiceField(
+        choices=InventoryTransaction.InventoryType.choices
+    )
+    inventory_id = serializers.IntegerField()
+
+    quantity = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        help_text="Positive number; will be applied as a negative delta.",
+    )
+
+    project_id = serializers.IntegerField(required=False)
+    bom_snapshot_type = serializers.CharField(required=False, allow_blank=True)
+    bom_snapshot_id = serializers.IntegerField(required=False)
+
+    station_id = serializers.IntegerField(required=False)
+    notes = serializers.CharField(required=False, allow_blank=True)

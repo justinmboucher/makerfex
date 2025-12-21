@@ -22,14 +22,25 @@ from decimal import Decimal
 from typing import Optional
 
 from django.db.models import F
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.filters import OrderingFilter
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
 
 from accounts.utils import get_shop_for_user
 from makerfex_backend.filters import QueryParamSearchFilter
+from accounts.models import Employee, Station
+from projects.models import Project
+
+from inventory.models import InventoryTransaction
+from inventory.serializers import InventoryConsumeSerializer
+from inventory.services import apply_inventory_transaction
 
 from .models import Material, Consumable, Equipment
 from .serializers import MaterialSerializer, ConsumableSerializer, EquipmentSerializer
+
 
 
 def _parse_bool(v: Optional[str]) -> Optional[bool]:
@@ -127,3 +138,71 @@ class EquipmentViewSet(InventoryBaseViewSet):
     queryset = Equipment.objects.all()
     serializer_class = EquipmentSerializer
     search_fields = ["name", "sku", "description", "unit_of_measure", "serial_number"]
+
+
+class InventoryConsumeView(APIView):
+    """
+    Record inventory consumption for a project.
+
+    This creates an InventoryTransaction and eagerly updates
+    quantity_on_hand via the inventory service layer.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        shop = get_shop_for_user(request.user)
+        if not shop:
+            return Response(
+                {"detail": "Current user has no shop configured."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = InventoryConsumeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        employee = Employee.objects.filter(
+            shop=shop, user=request.user
+        ).first()
+
+        project = None
+        if "project_id" in data:
+            project = get_object_or_404(
+                Project,
+                id=data["project_id"],
+                shop=shop,
+            )
+
+        station = None
+        if "station_id" in data:
+            station = get_object_or_404(
+                Station,
+                id=data["station_id"],
+                shop=shop,
+            )
+
+        txn = apply_inventory_transaction(
+            shop=shop,
+            inventory_type=data["inventory_type"],
+            inventory_id=data["inventory_id"],
+            quantity_delta=-data["quantity"],  # consumption = negative
+            reason=InventoryTransaction.Reason.CONSUME,
+            project=project,
+            bom_snapshot_type=data.get("bom_snapshot_type"),
+            bom_snapshot_id=data.get("bom_snapshot_id"),
+            station=station,
+            created_by=employee,
+            notes=data.get("notes", ""),
+        )
+
+        return Response(
+            {
+                "id": txn.id,
+                "inventory_type": txn.inventory_type,
+                "quantity_delta": txn.quantity_delta,
+                "reason": txn.reason,
+                "created_at": txn.created_at,
+            },
+            status=status.HTTP_201_CREATED,
+        )

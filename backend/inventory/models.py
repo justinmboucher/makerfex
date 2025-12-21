@@ -1,7 +1,7 @@
 # backend/inventory/models.py
 from django.db import models
 
-from accounts.models import TimeStampedModel, Shop, Station
+from accounts.models import TimeStampedModel, Shop, Station, Employee
 
 
 def inventory_image_upload_path(instance: "InventoryItemBase", filename: str) -> str:
@@ -122,3 +122,115 @@ class Equipment(InventoryItemBase):
 
   class Meta:
     ordering = ["shop", "name"]
+
+
+class InventoryTransaction(TimeStampedModel):
+    """
+    Immutable inventory movement record.
+
+    Inventory quantity_on_hand is updated eagerly when a transaction is created,
+    but the transaction itself is the source of truth.
+    """
+
+    class InventoryType(models.TextChoices):
+        MATERIAL = "material", "Material"
+        CONSUMABLE = "consumable", "Consumable"
+        EQUIPMENT = "equipment", "Equipment"
+
+    class Reason(models.TextChoices):
+        CONSUME = "consume", "Consume"
+        ADJUSTMENT = "adjustment", "Adjustment"
+        WASTE = "waste", "Waste"
+        RETURN = "return", "Return"
+
+    shop = models.ForeignKey(
+        Shop,
+        on_delete=models.CASCADE,
+        related_name="inventory_transactions",
+    )
+
+    inventory_type = models.CharField(
+        max_length=20,
+        choices=InventoryType.choices,
+    )
+
+    # Exactly ONE of these should be set, based on inventory_type
+    material = models.ForeignKey(
+        "inventory.Material",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transactions",
+    )
+    consumable = models.ForeignKey(
+        "inventory.Consumable",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transactions",
+    )
+    equipment = models.ForeignKey(
+        "inventory.Equipment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transactions",
+    )
+
+    # Context (optional but powerful)
+    project = models.ForeignKey(
+        "projects.Project",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_transactions",
+    )
+
+    # Optional BOM snapshot provenance (polymorphic by convention)
+    bom_snapshot_type = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="material | consumable | equipment",
+    )
+    bom_snapshot_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="ID of the corresponding Project BOM snapshot",
+    )
+
+    quantity_delta = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        help_text="Negative = consume, positive = restock/adjust",
+    )
+
+    reason = models.CharField(
+        max_length=20,
+        choices=Reason.choices,
+        default=Reason.CONSUME,
+    )
+
+    station = models.ForeignKey(
+        Station,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_transactions",
+    )
+
+    created_by = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_transactions",
+    )
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        target = self.material or self.consumable or self.equipment
+        return f"{self.get_reason_display()} {self.quantity_delta} {target}"
