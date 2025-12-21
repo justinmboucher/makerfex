@@ -150,14 +150,19 @@ export default function ProductsTable() {
     } catch (err: any) {
       // DRF typically returns {field: ["msg"]} or {detail: "..."}
       const data = err?.response?.data;
-      const detail =
-        (typeof data?.detail === "string" && data.detail) ||
-        (typeof data?.product_template_id === "string" && data.product_template_id) ||
-        (Array.isArray(data?.product_template_id) ? data.product_template_id.join(" ") : null) ||
-        "Failed to create project from template.";
 
-      setCreateError(detail);
-      setCreateSubmitting(false);
+        let message = "Failed to create project from template.";
+
+        if (typeof data?.detail === "string") {
+          message = data.detail;
+        } else if (typeof data?.product_template_id === "string") {
+          message = data.product_template_id;
+        } else if (Array.isArray(data?.product_template_id)) {
+          message = data.product_template_id.join(" ");
+        }
+
+        setCreateError(message);
+        setCreateSubmitting(false);
     }
   }
 
@@ -283,7 +288,11 @@ export default function ProductsTable() {
                             variant="primary"
                             disabled={!p.is_active}
                             onClick={() => openCreateProject(p)}
-                            title={p.is_active ? "Create a project from this template" : "Template is inactive"}
+                            title={
+                              p.is_active
+                                ? "Create a project from this template"
+                                : "This template is inactive"
+                            }
                           >
                             Create Project
                           </Button>
@@ -298,7 +307,13 @@ export default function ProductsTable() {
           </div>
         </Card.Body>
       </Card>
-      <Modal show={createOpen} onHide={closeCreateProject} centered>
+      <Modal
+        show={createOpen}
+        onHide={closeCreateProject}
+        centered
+        backdrop={createSubmitting ? "static" : true}
+        keyboard={!createSubmitting}
+      >
         <Modal.Header closeButton>
           <Modal.Title>Create Project</Modal.Title>
         </Modal.Header>
