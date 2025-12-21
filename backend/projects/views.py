@@ -38,6 +38,7 @@ from makerfex_backend.filters import QueryParamSearchFilter
 from projects.models import Project
 from projects.serializers import ProjectSerializer
 from products.models import ProductTemplate
+from workflows.models import WorkflowStage
 
 
 def _parse_bool(v):
@@ -89,6 +90,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
         "current_stage__name",
     ]
     ordering = ["-created_at"]
+
+    def _get_first_stage(self, workflow_id):
+        if not workflow_id:
+            return None
+        return (
+            WorkflowStage.objects
+            .filter(workflow_id=workflow_id)
+            .order_by("order", "id")
+            .first()
+        )
 
     def get_shop(self):
         return get_shop_for_user(self.request.user)
@@ -172,18 +183,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         shop = self.get_shop()
         if not shop:
-            raise ValueError("Current user has no shop configured.")
-        emp = self.get_employee(shop)
-        serializer.save(shop=shop, created_by=emp)
+            raise ValidationError({"detail": "Current user has no shop configured."})
 
+        project = serializer.save(shop=shop, created_by=emp)
+
+        if project.workflow_id and not project.current_stage_id:
+            first_stage = self._get_first_stage(project.workflow_id)
+            if first_stage:
+                project.current_stage = first_stage
+                project.save(update_fields=["current_stage"])
     
     @action(detail=False, methods=["post"], url_path="create_from_template")
     def create_from_template(self, request):
         shop = self.get_shop()
         if not shop:
             raise ValidationError({"detail": "Current user has no shop configured."})
-
-        emp = self.get_employee(shop)
 
         template_id = request.data.get("product_template_id")
         if not template_id:
@@ -203,15 +217,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         name = (request.data.get("name") or "").strip() or template.name
 
-        project = Project.objects.create(
-            shop=shop,
-            created_by=emp,
-            name=name,
-            product_template=template,
-            workflow=getattr(template, "default_workflow", None),
-            estimated_hours=getattr(template, "estimated_hours", None),
-        )
+        data = {
+            "name": name,
+            "product_template": template.id,
+            "workflow": getattr(template, "default_workflow_id", None),
+            "estimated_hours": getattr(template, "estimated_hours", None),
+        }
 
-        serializer = self.get_serializer(project)
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
