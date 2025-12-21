@@ -13,7 +13,6 @@ class Migration(migrations.Migration):
         ('accounts', '0001_initial'),
         ('accounts', '0002_employee_photo_shop_logo'),
         ('customers', '0001_initial'),
-        ('products', '0002_producttemplate_photo_projectpromotion_image'),
         ('workflows', '0001_initial'),
     ]
 
@@ -43,7 +42,6 @@ class Migration(migrations.Migration):
                 ('workflow', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='projects', to='workflows.workflow')),
                 ('photo', models.ImageField(blank=True, help_text='Optional photo of the project.', null=True, upload_to=projects.models.project_photo_upload_path)),
                 ('station', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='projects', to='accounts.station')),
-                ('product_template', models.ForeignKey(blank=True, help_text='Optional source ProductTemplate used to create this project (provenance).', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='projects', to='products.producttemplate')),
             ],
             options={
                 'ordering': ['shop', '-created_at'],
