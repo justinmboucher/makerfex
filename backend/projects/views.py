@@ -185,6 +185,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if not shop:
             raise ValidationError({"detail": "Current user has no shop configured."})
 
+        emp = self.get_employee(shop)
         project = serializer.save(shop=shop, created_by=emp)
 
         if project.workflow_id and not project.current_stage_id:
@@ -198,6 +199,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         shop = self.get_shop()
         if not shop:
             raise ValidationError({"detail": "Current user has no shop configured."})
+
+        emp = self.get_employee(shop)
 
         template_id = request.data.get("product_template_id")
         if not template_id:
