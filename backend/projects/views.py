@@ -21,23 +21,28 @@
 # - Querysets are always scoped to request.user's shop via get_shop_for_user()
 # ============================================================================
 
+from django.db import transaction
 from django.db.models import BooleanField, Case, Q, Value, When
 from django.utils import timezone
-from rest_framework import viewsets
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
-from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError
 
 from accounts.models import Employee
 from accounts.utils import get_shop_for_user
 from makerfex_backend.filters import QueryParamSearchFilter
 
-from projects.models import Project
-from projects.serializers import ProjectSerializer
 from products.models import ProductTemplate
+from projects.models import (
+    Project,
+    ProjectConsumableSnapshot,
+    ProjectEquipmentSnapshot,
+    ProjectMaterialSnapshot,
+)
+from projects.serializers import ProjectSerializer
 from workflows.models import WorkflowStage
 
 
@@ -95,8 +100,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if not workflow_id:
             return None
         return (
-            WorkflowStage.objects
-            .filter(workflow_id=workflow_id)
+            WorkflowStage.objects.filter(workflow_id=workflow_id)
             .order_by("order", "id")
             .first()
         )
@@ -151,9 +155,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
             qs = qs.filter(Q(station_id=station_id) | Q(assigned_to__stations__id=station_id)).distinct()
 
         # Status filter
-        status = qp.get("status")
-        if status:
-            qs = qs.filter(status=status)
+        status_value = qp.get("status")
+        if status_value:
+            qs = qs.filter(status=status_value)
 
         # Completion filter: ?is_completed=true/false
         is_completed = _parse_bool(qp.get("is_completed"))
@@ -163,10 +167,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
             qs = qs.exclude(current_stage__is_final=True)
 
         # VIP filter: ?vip=1
-        # (Customer model typically uses is_vip; we guard with a try to avoid hard failures.)
         vip = _parse_bool(qp.get("vip"))
         if vip is True:
-            # If the field doesn't exist, Django will raise FieldError; keep it safe.
             try:
                 qs = qs.filter(customer__is_vip=True)
             except Exception:
@@ -176,7 +178,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
         overdue = _parse_bool(qp.get("overdue"))
         if overdue is True:
             today = timezone.localdate()
-            qs = qs.filter(due_date__lt=today).exclude(status__in=[Project.Status.COMPLETED, Project.Status.CANCELLED])
+            qs = qs.filter(due_date__lt=today).exclude(
+                status__in=[Project.Status.COMPLETED, Project.Status.CANCELLED]
+            )
 
         return qs
 
@@ -193,14 +197,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
             if first_stage:
                 project.current_stage = first_stage
                 project.save(update_fields=["current_stage"])
-    
+
+        return project
+
     @action(detail=False, methods=["post"], url_path="create_from_template")
     def create_from_template(self, request):
         shop = self.get_shop()
         if not shop:
             raise ValidationError({"detail": "Current user has no shop configured."})
-
-        emp = self.get_employee(shop)
 
         template_id = request.data.get("product_template_id")
         if not template_id:
@@ -212,7 +216,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 shop=shop,
             )
         except ProductTemplate.DoesNotExist:
-            # Avoid cross-tenant leakage; treat as invalid input
             raise ValidationError({"product_template_id": "Invalid template."})
 
         if not getattr(template, "is_active", True):
@@ -223,13 +226,50 @@ class ProjectViewSet(viewsets.ModelViewSet):
         data = {
             "name": name,
             "product_template": template.id,
-            "workflow": getattr(template, "default_workflow_id", None),
-            "estimated_hours": getattr(template, "estimated_hours", None),
+            "workflow": template.default_workflow_id,
+            "estimated_hours": template.estimated_hours,
         }
 
-        serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        with transaction.atomic():
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            project = self.perform_create(serializer)
+
+            # Snapshot template requirements -> project snapshots
+            for req in template.material_requirements.all():
+                ProjectMaterialSnapshot.objects.create(
+                    project=project,
+                    source_template=template,
+                    material=req.material,
+                    material_name=req.material.name,
+                    quantity=req.quantity,
+                    unit=req.unit,
+                    unit_cost_snapshot=req.material.unit_cost,
+                    notes=req.notes,
+                )
+
+            for req in template.consumable_requirements.all():
+                ProjectConsumableSnapshot.objects.create(
+                    project=project,
+                    source_template=template,
+                    consumable=req.consumable,
+                    consumable_name=req.consumable.name,
+                    quantity=req.quantity,
+                    unit=req.unit,
+                    unit_cost_snapshot=req.consumable.unit_cost,
+                    notes=req.notes,
+                )
+
+            for req in template.equipment_requirements.all():
+                ProjectEquipmentSnapshot.objects.create(
+                    project=project,
+                    source_template=template,
+                    equipment=req.equipment,
+                    equipment_name=req.equipment.name,
+                    quantity=req.quantity,
+                    unit=req.unit,
+                    unit_cost_snapshot=req.equipment.unit_cost,
+                    notes=req.notes,
+                )
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
