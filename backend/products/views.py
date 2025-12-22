@@ -25,12 +25,13 @@ from rest_framework.filters import OrderingFilter
 
 from accounts.utils import get_shop_for_user
 from makerfex_backend.filters import QueryParamSearchFilter, parse_bool
+from makerfex_backend.mixins import ServerTableViewSetMixin, ShopScopedQuerysetMixin
 
 from .models import ProductTemplate, ProjectPromotion
 from .serializers import ProductTemplateSerializer, ProjectPromotionSerializer
 
 
-class ProductTemplateViewSet(viewsets.ReadOnlyModelViewSet):
+class ProductTemplateViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ModelViewSet):
     serializer_class = ProductTemplateSerializer
     queryset = ProductTemplate.objects.all()  # DRF requires; tenant scoping in get_queryset
 
@@ -47,11 +48,7 @@ class ProductTemplateViewSet(viewsets.ReadOnlyModelViewSet):
     ]
     ordering = ["name"]
 
-    def get_queryset(self):
-        shop = get_shop_for_user(self.request.user)
-        if not shop:
-            return ProductTemplate.objects.none()
-
+    def get_queryset(self, shop):
         qs = ProductTemplate.objects.filter(shop=shop)
 
         qp = self.request.query_params

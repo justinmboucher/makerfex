@@ -31,6 +31,8 @@ from django.shortcuts import get_object_or_404
 
 from accounts.utils import get_shop_for_user
 from makerfex_backend.filters import QueryParamSearchFilter, parse_bool, is_truthy
+from makerfex_backend.mixins import ServerTableViewSetMixin, ShopScopedQuerysetMixin
+
 from accounts.models import Employee, Station
 from projects.models import Project
 
@@ -42,7 +44,7 @@ from .models import Material, Consumable, Equipment
 from .serializers import MaterialSerializer, ConsumableSerializer, EquipmentSerializer
 
 
-class InventoryBaseViewSet(viewsets.ReadOnlyModelViewSet):
+class InventoryBaseViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ModelViewSet):
     """
     Base viewset for inventory types with:
     - Tenant scoping
@@ -72,11 +74,7 @@ class InventoryBaseViewSet(viewsets.ReadOnlyModelViewSet):
     # - search_fields
     model = None
 
-    def get_queryset(self):
-        shop = get_shop_for_user(self.request.user)
-        if not shop:
-            return self.model.objects.none()
-
+    def get_shop_queryset(self, shop):
         qs = self.model.objects.filter(shop=shop)
 
         qp = self.request.query_params

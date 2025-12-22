@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from accounts.utils import get_shop_for_user
 from accounts.models import Employee
 from makerfex_backend.filters import QueryParamSearchFilter, parse_bool
+from makerfex_backend.mixins import ShopScopedQuerysetMixin, ServerTableViewSetMixin
 
 from .models import Workflow, WorkflowStage
 from .serializers import WorkflowSerializer, WorkflowStageSerializer
@@ -23,7 +24,7 @@ class ShopScopedMixin:
         return Employee.objects.filter(shop=shop, user=self.request.user).first()
 
 
-class WorkflowViewSet(ShopScopedMixin, viewsets.ModelViewSet):
+class WorkflowViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ModelViewSet):
     serializer_class = WorkflowSerializer
     queryset = Workflow.objects.none()
     http_method_names = ["get", "post", "put", "patch", "head", "options"]
@@ -33,11 +34,7 @@ class WorkflowViewSet(ShopScopedMixin, viewsets.ModelViewSet):
     ordering_fields = ["id", "name", "is_default", "is_active", "created_at", "updated_at"]
     ordering = ("name", "id")
 
-    def get_queryset(self):
-        shop = self.get_shop()
-        if not shop:
-            return Workflow.objects.none()
-
+    def get_queryset(self, shop):
         qs = Workflow.objects.filter(shop=shop)
 
         is_active = parse_bool(self.request.query_params.get("is_active"))
@@ -58,7 +55,7 @@ class WorkflowViewSet(ShopScopedMixin, viewsets.ModelViewSet):
         serializer.save(shop=shop, created_by=emp)
 
 
-class WorkflowStageViewSet(ShopScopedMixin, viewsets.ModelViewSet):
+class WorkflowStageViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ModelViewSet):
     serializer_class = WorkflowStageSerializer
     queryset = WorkflowStage.objects.none()
     http_method_names = ["get", "post", "put", "patch", "head", "options"]
@@ -78,11 +75,7 @@ class WorkflowStageViewSet(ShopScopedMixin, viewsets.ModelViewSet):
     ]
     ordering = ("workflow_id", "order", "id")
 
-    def get_queryset(self):
-        shop = self.get_shop()
-        if not shop:
-            return WorkflowStage.objects.none()
-
+    def get_queryset(self, shop):
         qs = WorkflowStage.objects.filter(workflow__shop=shop)
 
         workflow_id = self.request.query_params.get("workflow")

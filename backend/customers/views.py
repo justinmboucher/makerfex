@@ -6,12 +6,13 @@ from rest_framework.permissions import IsAuthenticated
 
 from accounts.utils import get_shop_for_user
 from makerfex_backend.filters import QueryParamSearchFilter, is_truthy
+from makerfex_backend.mixins import ServerTableViewSetMixin, ShopScopedQuerysetMixin
 
 from .models import Customer
 from .serializers import CustomerSerializer
 
 
-class CustomerViewSet(viewsets.ModelViewSet):
+class CustomerViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ModelViewSet):
     """
     Customer API scoped to the current user's shop.
 
@@ -49,11 +50,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
     # Default ordering when no ?ordering= is provided
     ordering = ["-created_at"]
 
-    def get_queryset(self):
-        shop = get_shop_for_user(self.request.user)
-        if not shop:
-            return Customer.objects.none()
-
+    
+    def get_shop_queryset(self, shop):
         qs = Customer.objects.filter(shop=shop)
 
         if is_truthy(self.request.query_params.get("vip")):
