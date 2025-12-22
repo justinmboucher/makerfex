@@ -34,6 +34,7 @@ from rest_framework.response import Response
 from accounts.models import Employee
 from accounts.utils import get_shop_for_user
 from makerfex_backend.filters import QueryParamSearchFilter, parse_bool
+from makerfex_backend.mixins import ServerTableViewSetMixin, ShopScopedQuerysetMixin
 
 from products.models import ProductTemplate
 from projects.models import (
@@ -46,7 +47,7 @@ from projects.serializers import ProjectSerializer
 from workflows.models import WorkflowStage
 
 
-class ProjectViewSet(viewsets.ModelViewSet):
+class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSerializer
     queryset = Project.objects.none()
@@ -102,11 +103,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return None
         return Employee.objects.filter(shop=shop, user=self.request.user).first()
 
-    def get_queryset(self):
-        shop = self.get_shop()
-        if not shop:
-            return Project.objects.none()
-
+    def get_queryset(self, shop):
         qs = (
             Project.objects.filter(shop=shop, is_archived=False)
             .select_related("customer", "assigned_to", "workflow", "current_stage", "station")

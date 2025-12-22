@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from accounts.utils import get_shop_for_user
 from makerfex_backend.filters import QueryParamSearchFilter
+from makerfex_backend.mixins import ShopScopedQuerysetMixin, ServerTableViewSetMixin
 
 from .models import SalesOrder, SalesOrderLine
 from .serializers import SalesOrderSerializer, SalesOrderLineSerializer
@@ -23,7 +24,7 @@ def _try_scope_to_shop(qs, shop, candidate_filters):
   # If we can't safely scope, return empty rather than leaking data.
   return qs.none()
 
-class SalesOrderViewSet(viewsets.ModelViewSet):
+class SalesOrderViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = SalesOrderSerializer
     queryset = SalesOrder.objects.none()
@@ -34,11 +35,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     ordering_fields = ["id"]
     ordering = ("-id",)
 
-    def get_queryset(self):
-        shop = get_shop_for_user(self.request.user)
-        if not shop:
-            return SalesOrder.objects.none()
-
+    def get_queryset(self, shop):
         base = SalesOrder.objects.all()
         return _try_scope_to_shop(
         base,
