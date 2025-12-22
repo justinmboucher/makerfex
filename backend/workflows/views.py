@@ -6,22 +6,10 @@ from rest_framework.permissions import IsAuthenticated
 
 from accounts.utils import get_shop_for_user
 from accounts.models import Employee
-from makerfex_backend.filters import QueryParamSearchFilter
+from makerfex_backend.filters import QueryParamSearchFilter, parse_bool
 
 from .models import Workflow, WorkflowStage
 from .serializers import WorkflowSerializer, WorkflowStageSerializer
-
-
-def parse_bool(val):
-    if val is None:
-        return None
-    v = str(val).strip().lower()
-    if v in ("1", "true", "t", "yes", "y", "on"):
-        return True
-    if v in ("0", "false", "f", "no", "n", "off"):
-        return False
-    return None
-
 
 class ShopScopedMixin:
     permission_classes = [IsAuthenticated]

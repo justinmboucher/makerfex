@@ -33,7 +33,7 @@ from rest_framework.response import Response
 
 from accounts.models import Employee
 from accounts.utils import get_shop_for_user
-from makerfex_backend.filters import QueryParamSearchFilter
+from makerfex_backend.filters import QueryParamSearchFilter, parse_bool
 
 from products.models import ProductTemplate
 from projects.models import (
@@ -44,17 +44,6 @@ from projects.models import (
 )
 from projects.serializers import ProjectSerializer
 from workflows.models import WorkflowStage
-
-
-def _parse_bool(v):
-    if v is None:
-        return None
-    s = str(v).strip().lower()
-    if s in {"1", "true", "t", "yes", "y", "on"}:
-        return True
-    if s in {"0", "false", "f", "no", "n", "off"}:
-        return False
-    return None
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -160,14 +149,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=status_value)
 
         # Completion filter: ?is_completed=true/false
-        is_completed = _parse_bool(qp.get("is_completed"))
+        is_completed = parse_bool(qp.get("is_completed"))
         if is_completed is True:
             qs = qs.filter(current_stage__is_final=True)
         elif is_completed is False:
             qs = qs.exclude(current_stage__is_final=True)
 
         # VIP filter: ?vip=1
-        vip = _parse_bool(qp.get("vip"))
+        vip = parse_bool(qp.get("vip"))
         if vip is True:
             try:
                 qs = qs.filter(customer__is_vip=True)
@@ -175,7 +164,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 pass
 
         # Overdue filter: ?overdue=1
-        overdue = _parse_bool(qp.get("overdue"))
+        overdue = parse_bool(qp.get("overdue"))
         if overdue is True:
             today = timezone.localdate()
             qs = qs.filter(due_date__lt=today).exclude(

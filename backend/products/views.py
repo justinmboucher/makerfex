@@ -24,21 +24,10 @@ from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter
 
 from accounts.utils import get_shop_for_user
-from makerfex_backend.filters import QueryParamSearchFilter
+from makerfex_backend.filters import QueryParamSearchFilter, parse_bool
 
 from .models import ProductTemplate, ProjectPromotion
 from .serializers import ProductTemplateSerializer, ProjectPromotionSerializer
-
-
-def _parse_bool(v: Optional[str]) -> Optional[bool]:
-    if v is None:
-        return None
-    s = v.strip().lower()
-    if s in {"1", "true", "t", "yes", "y", "on"}:
-        return True
-    if s in {"0", "false", "f", "no", "n", "off"}:
-        return False
-    return None
 
 
 class ProductTemplateViewSet(viewsets.ReadOnlyModelViewSet):
@@ -67,7 +56,7 @@ class ProductTemplateViewSet(viewsets.ReadOnlyModelViewSet):
 
         qp = self.request.query_params
 
-        is_active = _parse_bool(qp.get("is_active"))
+        is_active = parse_bool(qp.get("is_active"))
         if is_active is not None:
             qs = qs.filter(is_active=is_active)
 
