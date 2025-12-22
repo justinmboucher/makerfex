@@ -30,7 +30,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
 from accounts.utils import get_shop_for_user
-from makerfex_backend.filters import QueryParamSearchFilter
+from makerfex_backend.filters import QueryParamSearchFilter, parse_bool, is_truthy
 from accounts.models import Employee, Station
 from projects.models import Project
 
@@ -40,22 +40,6 @@ from inventory.services import apply_inventory_transaction
 
 from .models import Material, Consumable, Equipment
 from .serializers import MaterialSerializer, ConsumableSerializer, EquipmentSerializer
-
-
-
-def _parse_bool(v: Optional[str]) -> Optional[bool]:
-    if v is None:
-        return None
-    s = v.strip().lower()
-    if s in {"1", "true", "t", "yes", "y", "on"}:
-        return True
-    if s in {"0", "false", "f", "no", "n", "off"}:
-        return False
-    return None
-
-
-def _truthy(v: Optional[str]) -> bool:
-    return _parse_bool(v) is True
 
 
 class InventoryBaseViewSet(viewsets.ReadOnlyModelViewSet):
@@ -98,11 +82,11 @@ class InventoryBaseViewSet(viewsets.ReadOnlyModelViewSet):
         qp = self.request.query_params
 
         # Backend-authoritative filters
-        is_active = _parse_bool(qp.get("is_active"))
+        is_active = parse_bool(qp.get("is_active"))
         if is_active is not None:
             qs = qs.filter(is_active=is_active)
 
-        if _truthy(qp.get("low_stock")):
+        if is_truthy(qp.get("low_stock")):
             # reorder_point > 0 AND quantity_on_hand <= reorder_point
             qs = qs.filter(reorder_point__gt=Decimal("0")).filter(
                 quantity_on_hand__lte=F("reorder_point")

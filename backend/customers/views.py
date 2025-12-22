@@ -5,7 +5,7 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 
 from accounts.utils import get_shop_for_user
-from makerfex_backend.filters import QueryParamSearchFilter
+from makerfex_backend.filters import QueryParamSearchFilter, is_truthy
 
 from .models import Customer
 from .serializers import CustomerSerializer
@@ -56,8 +56,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
         qs = Customer.objects.filter(shop=shop)
 
-        vip = self.request.query_params.get("vip")
-        if vip == "1":
+        if is_truthy(self.request.query_params.get("vip")):
             qs = qs.filter(is_vip=True)
 
         return qs

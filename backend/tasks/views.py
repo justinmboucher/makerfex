@@ -7,21 +7,10 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 
 from accounts.utils import get_shop_for_user
-from makerfex_backend.filters import QueryParamSearchFilter
+from makerfex_backend.filters import QueryParamSearchFilter, parse_bool
 
 from .models import Task
 from .serializers import TaskSerializer
-
-
-def parse_bool(val):
-    if val is None:
-        return None
-    v = str(val).strip().lower()
-    if v in ("1", "true", "t", "yes", "y", "on"):
-        return True
-    if v in ("0", "false", "f", "no", "n", "off"):
-        return False
-    return None
 
 
 class TaskViewSet(viewsets.ModelViewSet):
