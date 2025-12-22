@@ -33,7 +33,22 @@ def parse_bool(val):
 class ShopViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = ShopSerializer
-    queryset = Shop.objects.all()
+    queryset = Shop.objects.none()
+
+    # Contract support (harmless, but keeps things consistent)
+    filter_backends = [QueryParamSearchFilter, OrderingFilter]
+    search_fields = ["name", "slug"]
+    ordering_fields = ["id", "name", "slug"]
+    ordering = ("name", "id")
+
+    def get_queryset(self):
+        """
+        Multi-tenant safety: only ever expose the current user's shop.
+        """
+        shop = get_shop_for_user(self.request.user)
+        if not shop:
+            return Shop.objects.none()
+        return Shop.objects.filter(id=shop.id)
 
 
 class EmployeeViewSet(viewsets.ModelViewSet):
