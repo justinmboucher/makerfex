@@ -1,6 +1,6 @@
 # backend/workflows/models.py
-from django.db import models
 
+from django.db import models
 from accounts.models import TimeStampedModel, Shop, Employee
 
 
@@ -9,6 +9,7 @@ class Workflow(TimeStampedModel):
     A pipeline of stages that projects move through for a given shop.
     e.g. 'Standard Woodworking', 'Resin Casting', etc.
     """
+
     shop = models.ForeignKey(
         Shop,
         on_delete=models.CASCADE,
@@ -42,14 +43,18 @@ class Workflow(TimeStampedModel):
 class WorkflowStage(TimeStampedModel):
     """
     A single stage in a workflow (Kanban column).
+
     e.g. 'Design', 'Cutting', 'Assembly', 'Finishing', 'Ready to Ship'.
     """
+
     workflow = models.ForeignKey(
         Workflow,
         on_delete=models.CASCADE,
         related_name="stages",
     )
     name = models.CharField(max_length=150)
+
+    # Backend-authoritative stage ordering.
     order = models.PositiveIntegerField(
         default=0,
         help_text="Stage order within the workflow (lower = earlier).",
@@ -64,6 +69,7 @@ class WorkflowStage(TimeStampedModel):
         help_text="If true, this represents a terminal stage (e.g. 'Completed').",
     )
 
+    # Allows logging a sale from this stage (foundation for later flows).
     allows_sale_log = models.BooleanField(default=False)
 
     wip_limit = models.PositiveIntegerField(
@@ -73,10 +79,16 @@ class WorkflowStage(TimeStampedModel):
 
     is_active = models.BooleanField(default=True)
 
-
     class Meta:
         unique_together = ("workflow", "name")
         ordering = ["workflow", "order", "id"]
+        constraints = [
+            # Keep stage ordering stable and unambiguous within a workflow.
+            models.UniqueConstraint(
+                fields=["workflow", "order"],
+                name="uniq_workflow_stage_order",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.name} [{self.workflow.name}]"
