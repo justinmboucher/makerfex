@@ -1,5 +1,6 @@
 # backend/products/serializers.py
 from rest_framework import serializers
+from accounts.utils import get_shop_for_user
 
 from .models import ProductTemplate, ProjectPromotion
 
@@ -24,7 +25,7 @@ class ProductTemplateSerializer(serializers.ModelSerializer):
       "created_at",
       "updated_at",
     ]
-    read_only_fields = ["id", "created_at", "updated_at", "photo_url"]
+    read_only_fields = ["id", "shop", "created_at", "updated_at", "photo_url"]
 
   def get_photo_url(self, obj):
     request = self.context.get("request")
@@ -32,6 +33,20 @@ class ProductTemplateSerializer(serializers.ModelSerializer):
       url = obj.photo.url
       return request.build_absolute_uri(url) if request else url
     return None
+
+  def validate(self, attrs):
+    request = self.context.get("request")
+    shop = get_shop_for_user(request.user) if request else None
+
+    default_workflow = attrs.get("default_workflow") or getattr(self.instance, "default_workflow", None)
+
+    if shop and default_workflow:
+      if getattr(default_workflow, "shop_id", None) != shop.id:
+        raise serializers.ValidationError({"default_workflow": "Invalid workflow."})
+      if getattr(default_workflow, "is_active", True) is False:
+        raise serializers.ValidationError({"default_workflow": "Workflow is inactive."})
+
+    return attrs
 
 
 class ProjectPromotionSerializer(serializers.ModelSerializer):
