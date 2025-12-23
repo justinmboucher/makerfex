@@ -3,6 +3,8 @@
 from rest_framework import serializers
 from .models import Project
 
+from accounts.utils import get_shop_for_user
+
 
 class ProjectSerializer(serializers.ModelSerializer):
     customer_name = serializers.SerializerMethodField()
@@ -123,3 +125,40 @@ class ProjectSerializer(serializers.ModelSerializer):
     def get_can_log_sale(self, obj):
         st = getattr(obj, "current_stage", None)
         return bool(getattr(st, "allows_sale_log", False)) if st else False
+    
+    def validate(self, attrs):
+        request = self.context.get("request")
+        shop = get_shop_for_user(request.user) if request else None
+
+        workflow = attrs.get("workflow") or getattr(self.instance, "workflow", None)
+        stage = attrs.get("current_stage") or getattr(self.instance, "current_stage", None)
+
+        # Tenant safety on input FKs
+        if shop:
+            if workflow and getattr(workflow, "shop_id", None) != shop.id:
+                raise serializers.ValidationError({"workflow": "Invalid workflow."})
+            if stage and getattr(stage.workflow, "shop_id", None) != shop.id:
+                raise serializers.ValidationError({"current_stage": "Invalid stage."})
+
+        if self.instance and getattr(self.instance, "is_archived", False):
+            # allow unarchive only
+            if not ("is_archived" in attrs and attrs["is_archived"] is False and len(attrs) == 1):
+                raise serializers.ValidationError({"detail": "Archived projects cannot be modified."})
+
+        
+        if stage and getattr(stage, "is_active", True) is False:
+            raise serializers.ValidationError({"current_stage": "Stage is inactive."})
+
+        # If stage provided but workflow missing, infer workflow from stage
+        if stage and not workflow:
+            workflow = stage.workflow
+            attrs["workflow"] = workflow
+
+        # Consistency: stage must belong to workflow
+        if workflow and stage and stage.workflow_id != workflow.id:
+            raise serializers.ValidationError(
+                {"current_stage": "Stage must belong to the selected workflow."}
+            )
+
+        return attrs
+    
