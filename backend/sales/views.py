@@ -35,7 +35,7 @@ class SalesOrderViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewse
     ordering_fields = ["id"]
     ordering = ("-id",)
 
-    def get_queryset(self, shop):
+    def get_shop_queryset(self, shop):
         base = SalesOrder.objects.all()
         return _try_scope_to_shop(
         base,
