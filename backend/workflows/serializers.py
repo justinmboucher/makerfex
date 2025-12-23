@@ -33,7 +33,7 @@ class WorkflowStageSerializer(serializers.ModelSerializer):
         is_final = attrs.get("is_final", getattr(self.instance, "is_final", False))
 
         if workflow and is_final:
-            qs = WorkflowStage.objects.filter(workflow=workflow, is_final=True)
+            qs = WorkflowStage.objects.filter(workflow=workflow, is_final=True, is_active=True)
             if self.instance:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
