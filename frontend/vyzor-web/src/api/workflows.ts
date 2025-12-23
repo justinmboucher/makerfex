@@ -44,7 +44,7 @@ function unwrapList<T>(data: any): { items: T[]; count?: number } {
   return { items: [], count: 0 };
 }
 
-const WORKFLOWS_BASE = "workflows/workflows/";
+const WORKFLOWS_BASE = "workflows/";
 const STAGES_BASE = "workflows/stages/";
 
 export async function listWorkflows(params?: Record<string, any>) {

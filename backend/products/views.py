@@ -48,7 +48,7 @@ class ProductTemplateViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, v
     ]
     ordering = ["name"]
 
-    def get_queryset(self, shop):
+    def get_shop_queryset(self, shop):
         qs = ProductTemplate.objects.filter(shop=shop)
 
         qp = self.request.query_params

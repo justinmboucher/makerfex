@@ -103,7 +103,7 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
             return None
         return Employee.objects.filter(shop=shop, user=self.request.user).first()
 
-    def get_queryset(self, shop):
+    def get_shop_queryset(self, shop):
         qs = (
             Project.objects.filter(shop=shop, is_archived=False)
             .select_related("customer", "assigned_to", "workflow", "current_stage", "station")
