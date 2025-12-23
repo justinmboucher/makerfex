@@ -259,3 +259,89 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
                 )
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    def destroy(self, request, *args, **kwargs):
+        """
+        No destructive deletes:
+        - Always archive (is_archived=True)
+        """
+        project = self.get_object()
+
+        if not getattr(project, "is_archived", False):
+            project.is_archived = True
+            project.save(update_fields=["is_archived"])
+
+        data = self.get_serializer(project).data
+        return Response(
+            {
+                "detail": "Project cannot be deleted; it was archived instead.",
+                "archived": True,
+                "project": data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"], url_path="transition")
+    def transition(self, request, pk=None):
+        """
+        Explicit stage transition action.
+
+        POST /api/projects/{id}/transition/
+        Body: { "to_stage_id": 123, "force": true|false }
+        """
+        project = self.get_object()
+        to_stage_id = request.data.get("to_stage_id")
+        force = parse_bool(request.data.get("force")) is True
+
+        if not to_stage_id:
+            raise ValidationError({"to_stage_id": "This field is required."})
+
+        # Archived projects are read-only
+        if project.is_archived:
+            raise ValidationError({"detail": "Archived projects cannot transition stages."})
+
+        # Status gates
+        if project.status == Project.Status.CANCELLED:
+            raise ValidationError({"detail": "Cancelled projects cannot transition stages."})
+
+        if project.status == Project.Status.ON_HOLD and not force:
+            raise ValidationError({"detail": "On-hold projects cannot transition stages without force=true."})
+
+        if project.status == Project.Status.COMPLETED and not force:
+            raise ValidationError({"detail": "Completed projects cannot transition stages without force=true."})
+
+        if not project.workflow_id:
+            raise ValidationError({"detail": "Project has no workflow assigned."})
+
+        # Must be an ACTIVE stage in the same workflow
+        try:
+            to_stage = WorkflowStage.objects.get(
+                id=to_stage_id,
+                workflow_id=project.workflow_id,
+                is_active=True,
+            )
+        except WorkflowStage.DoesNotExist:
+            raise ValidationError({"to_stage_id": "Invalid stage for this workflow (or inactive)."})
+
+        now = timezone.now()
+
+        with transaction.atomic():
+            from_stage = project.current_stage
+            project.current_stage = to_stage
+
+            # Status consistency rules
+            if to_stage.is_final:
+                if project.status != Project.Status.COMPLETED:
+                    project.status = Project.Status.COMPLETED
+                if not project.completed_at:
+                    project.completed_at = now
+            else:
+                # If leaving final stage, un-complete (unless force keeps status?)
+                if project.status == Project.Status.COMPLETED:
+                    project.status = Project.Status.ACTIVE
+                    project.completed_at = None
+
+            project.save(update_fields=["current_stage", "status", "completed_at", "updated_at"])
+
+        data = self.get_serializer(project).data
+        return Response({"detail": "Stage transitioned.", "project": data}, status=status.HTTP_200_OK)
