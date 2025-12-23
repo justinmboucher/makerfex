@@ -18,42 +18,13 @@ from .serializers import WorkflowSerializer, WorkflowStageSerializer
 
 
 def _workflow_is_referenced(workflow: Workflow) -> bool:
-    """
-    Returns True if this workflow is referenced by other domain objects (e.g. projects).
-    Uses runtime model loading to avoid circular imports.
-    """
-    try:
-        Project = apps.get_model("projects", "Project")
-    except Exception:
-        Project = None
-
-    if Project is not None:
-        # Common patterns: project.workflow FK
-        if hasattr(Project, "workflow"):
-            if Project.objects.filter(workflow=workflow).exists():
-                return True
-
-    return False
+    Project = apps.get_model("projects", "Project")
+    return Project.objects.filter(workflow=workflow).exists()
 
 
 def _stage_is_referenced(stage: WorkflowStage) -> bool:
-    """
-    Returns True if this stage is referenced by other domain objects.
-    Uses runtime model loading to avoid circular imports.
-    """
-    try:
-        Project = apps.get_model("projects", "Project")
-    except Exception:
-        Project = None
-
-    if Project is not None:
-        # Common pattern: project.current_stage FK
-        if hasattr(Project, "current_stage"):
-            if Project.objects.filter(current_stage=stage).exists():
-                return True
-
-    # Sales references can be added later without importing sales models at module import time.
-    return False
+    Project = apps.get_model("projects", "Project")
+    return Project.objects.filter(current_stage=stage).exists()
 
 
 class ShopScopedMixin:
@@ -135,43 +106,54 @@ class WorkflowViewSet(
 
         return super().destroy(request, *args, **kwargs)
 
-    @action(detail=True, methods=["post"], url_path="stages/reorder")
-    def reorder_stages(self, request, pk=None):
-        """
-        Backend-authoritative stage ordering.
+        @action(detail=True, methods=["post"], url_path="stages/reorder")
+        def reorder_stages(self, request, pk=None):
+            """
+            Backend-authoritative stage ordering (active stages only).
 
-        POST /workflows/{id}/stages/reorder/
-        Body: { "stage_ids": [3,1,2] }
-        """
-        workflow = self.get_object()
-        stage_ids = request.data.get("stage_ids")
+            POST /workflows/{id}/stages/reorder/
+            Body: { "stage_ids": [3,1,2,...] }
 
-        if not isinstance(stage_ids, list) or not all(isinstance(x, int) for x in stage_ids):
-            return Response(
-                {"detail": "stage_ids must be a list of integers."},
-                status=status.HTTP_400_BAD_REQUEST,
+            Semantics (locked):
+            - stage_ids must include exactly ALL active stage IDs for the workflow
+            - order is normalized to 0..N-1 every time
+            - inactive stages are not reorderable via this endpoint
+            """
+            workflow = self.get_object()
+            stage_ids = request.data.get("stage_ids")
+
+            if not isinstance(stage_ids, list) or not all(isinstance(x, int) for x in stage_ids):
+                return Response(
+                    {"detail": "stage_ids must be a list of integers."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if len(stage_ids) != len(set(stage_ids)):
+                return Response(
+                    {"detail": "stage_ids contains duplicates."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Active stages for this workflow
+            active_ids = list(
+                WorkflowStage.objects.filter(workflow=workflow, is_active=True).values_list("id", flat=True)
             )
 
-        if len(stage_ids) != len(set(stage_ids)):
-            return Response(
-                {"detail": "stage_ids contains duplicates."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            if set(stage_ids) != set(active_ids):
+                return Response(
+                    {
+                        "detail": "stage_ids must include exactly all active stages for this workflow.",
+                        "expected_stage_ids": sorted(active_ids),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        # Ensure all stages belong to this workflow (and tenant)
-        stages = list(WorkflowStage.objects.filter(workflow=workflow, id__in=stage_ids))
-        if len(stages) != len(stage_ids):
-            return Response(
-                {"detail": "One or more stage_ids are invalid for this workflow."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            with transaction.atomic():
+                # Normalize order to 0..n-1 for ALL active stages
+                for idx, sid in enumerate(stage_ids):
+                    WorkflowStage.objects.filter(workflow=workflow, id=sid, is_active=True).update(order=idx)
 
-        with transaction.atomic():
-            # Normalize order to 0..n-1
-            for idx, sid in enumerate(stage_ids):
-                WorkflowStage.objects.filter(workflow=workflow, id=sid).update(order=idx)
-
-        return Response({"detail": "Stage order updated."}, status=status.HTTP_200_OK)
+            return Response({"detail": "Stage order updated."}, status=status.HTTP_200_OK)
 
 
 class WorkflowStageViewSet(
