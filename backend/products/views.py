@@ -18,10 +18,10 @@
 # - Read-only viewsets for now (no destructive actions).
 # ============================================================================
 
-from typing import Optional
 
 from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter
+from rest_framework.permissions import IsAuthenticated
 
 from accounts.utils import get_shop_for_user
 from makerfex_backend.filters import QueryParamSearchFilter, parse_bool
@@ -32,39 +32,39 @@ from .serializers import ProductTemplateSerializer, ProjectPromotionSerializer
 
 
 class ProductTemplateViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
     serializer_class = ProductTemplateSerializer
-    queryset = ProductTemplate.objects.all()  # DRF requires; tenant scoping in get_queryset
+    queryset = ProductTemplate.objects.all()
 
-    filter_backends = [QueryParamSearchFilter, OrderingFilter]
-    search_fields = ["name", "slug", "description"]
-    ordering_fields = [
-        "name",
-        "slug",
-        "base_price",
-        "estimated_hours",
-        "is_active",
-        "created_at",
-        "updated_at",
-    ]
-    ordering = ["name"]
+    http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
+    ...
 
-    def get_shop_queryset(self, shop):
-        qs = ProductTemplate.objects.filter(shop=shop)
+    def perform_create(self, serializer):
+        shop = get_shop_for_user(self.request.user)
+        if not shop:
+            raise ValueError("Current user has no shop configured.")
+        serializer.save(shop=shop)
 
-        qp = self.request.query_params
+    def destroy(self, request, *args, **kwargs):
+        """
+        No destructive deletes:
+        - disable product template (is_active=False)
+        """
+        obj = self.get_object()
 
-        is_active = parse_bool(qp.get("is_active"))
-        if is_active is not None:
-            qs = qs.filter(is_active=is_active)
+        if hasattr(obj, "is_active") and obj.is_active:
+            obj.is_active = False
+            obj.save(update_fields=["is_active"])
 
-        default_workflow = qp.get("default_workflow")
-        if default_workflow:
-            try:
-                qs = qs.filter(default_workflow_id=int(default_workflow))
-            except (TypeError, ValueError):
-                pass
-
-        return qs
+        data = self.get_serializer(obj).data
+        return Response(
+            {
+                "detail": "Product template cannot be deleted; it was disabled instead.",
+                "disabled": True,
+                "product_template": data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class ProjectPromotionViewSet(viewsets.ReadOnlyModelViewSet):
