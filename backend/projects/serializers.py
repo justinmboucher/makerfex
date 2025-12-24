@@ -1,9 +1,71 @@
 # backend/projects/serializers.py
 
 from rest_framework import serializers
-from .models import Project
 
 from accounts.utils import get_shop_for_user
+from .models import (
+    Project,
+    ProjectConsumableSnapshot,
+    ProjectEquipmentSnapshot,
+    ProjectMaterialSnapshot,
+)
+
+
+class ProjectMaterialSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectMaterialSnapshot
+        fields = [
+            "id",
+            "project",
+            "source_template",
+            "material",
+            "material_name",
+            "quantity",
+            "unit",
+            "unit_cost_snapshot",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class ProjectConsumableSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectConsumableSnapshot
+        fields = [
+            "id",
+            "project",
+            "source_template",
+            "consumable",
+            "consumable_name",
+            "quantity",
+            "unit",
+            "unit_cost_snapshot",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class ProjectEquipmentSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectEquipmentSnapshot
+        fields = [
+            "id",
+            "project",
+            "source_template",
+            "equipment",
+            "equipment_name",
+            "quantity",
+            "unit",
+            "unit_cost_snapshot",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -19,6 +81,11 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     # comes from queryset annotation in ProjectViewSet
     is_completed = serializers.BooleanField(read_only=True)
+
+    # Immutable BOM snapshots (read-only)
+    material_snapshots = ProjectMaterialSnapshotSerializer(many=True, read_only=True)
+    consumable_snapshots = ProjectConsumableSnapshotSerializer(many=True, read_only=True)
+    equipment_snapshots = ProjectEquipmentSnapshotSerializer(many=True, read_only=True)
 
     class Meta:
         model = Project
@@ -53,6 +120,9 @@ class ProjectSerializer(serializers.ModelSerializer):
             "estimated_hours",
             "actual_hours",
             "is_archived",
+            "material_snapshots",
+            "consumable_snapshots",
+            "equipment_snapshots",
             "created_at",
             "updated_at",
         ]
@@ -69,6 +139,9 @@ class ProjectSerializer(serializers.ModelSerializer):
             "current_stage_name",
             "can_log_sale",
             "is_completed",
+            "material_snapshots",
+            "consumable_snapshots",
+            "equipment_snapshots",
         ]
 
     def _employee_display_name(self, emp):
@@ -125,7 +198,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     def get_can_log_sale(self, obj):
         st = getattr(obj, "current_stage", None)
         return bool(getattr(st, "allows_sale_log", False)) if st else False
-    
+
     def validate(self, attrs):
         request = self.context.get("request")
         shop = get_shop_for_user(request.user) if request else None
@@ -140,12 +213,16 @@ class ProjectSerializer(serializers.ModelSerializer):
             if stage and getattr(stage.workflow, "shop_id", None) != shop.id:
                 raise serializers.ValidationError({"current_stage": "Invalid stage."})
 
+        # Archived projects are read-only (except explicit unarchive-only patch, if you keep that rule)
         if self.instance and getattr(self.instance, "is_archived", False):
-            # allow unarchive only
-            if not ("is_archived" in attrs and attrs["is_archived"] is False and len(attrs) == 1):
+            allow_unarchive_only = (
+                ("is_archived" in attrs)
+                and (attrs.get("is_archived") is False)
+                and (len(attrs) == 1)
+            )
+            if not allow_unarchive_only:
                 raise serializers.ValidationError({"detail": "Archived projects cannot be modified."})
 
-        
         if stage and getattr(stage, "is_active", True) is False:
             raise serializers.ValidationError({"current_stage": "Stage is inactive."})
 
@@ -156,9 +233,6 @@ class ProjectSerializer(serializers.ModelSerializer):
 
         # Consistency: stage must belong to workflow
         if workflow and stage and stage.workflow_id != workflow.id:
-            raise serializers.ValidationError(
-                {"current_stage": "Stage must belong to the selected workflow."}
-            )
+            raise serializers.ValidationError({"current_stage": "Stage must belong to the selected workflow."})
 
         return attrs
-    

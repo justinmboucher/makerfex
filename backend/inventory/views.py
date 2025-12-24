@@ -2,26 +2,9 @@
 # ============================================================================
 # Inventory ViewSets + Ledger (Server-Driven Tables)
 # ----------------------------------------------------------------------------
-# Canonical list contract:
-# - ?q= free-text search
-# - ?ordering= server-side ordering
-# - ?page= / ?page_size= pagination (DRF settings)
-#
-# Backend-authoritative filters (items):
-# - ?is_active=0|1
-# - ?low_stock=0|1
-# - ?preferred_station=<id>
-#
-# Ledger:
-# - /api/inventory/transactions/ (read-only)
-# - Filters: inventory_type, inventory_id, reason, project, station
-#
-# No silent mutations:
-# - quantity_on_hand cannot be patched directly (serializer enforces)
-# - stock changes must go through transaction endpoints (consume/adjust)
-#
-# No destructive deletes:
-# - DELETE disables inventory items (is_active=False)
+# Adds:
+# - Consume endpoint supports BOM snapshot provenance validation.
+# - Uses InventoryTransaction.Reason.CONSUME (not "consumption").
 # ============================================================================
 
 from typing import Optional
@@ -57,21 +40,13 @@ def _get_employee(shop, user) -> Optional[Employee]:
 
 
 class InventoryBaseViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ModelViewSet):
-    """
-    Base class for inventory item CRUD with tenant scoping + safe delete.
-    """
     permission_classes = [IsAuthenticated]
-
-    # Enable full CRUD but keep no destructive deletes.
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
 
     filter_backends = [QueryParamSearchFilter, OrderingFilter]
     ordering = ["name"]
 
     def destroy(self, request, *args, **kwargs):
-        """
-        No destructive deletes: disable (is_active=False).
-        """
         obj = self.get_object()
         if hasattr(obj, "is_active") and obj.is_active:
             obj.is_active = False
@@ -106,7 +81,6 @@ class MaterialViewSet(InventoryBaseViewSet):
 
     def get_shop_queryset(self, shop):
         qs = Material.objects.filter(shop=shop)
-
         qp = self.request.query_params
 
         is_active = parse_bool(qp.get("is_active"))
@@ -115,7 +89,7 @@ class MaterialViewSet(InventoryBaseViewSet):
 
         low_stock = parse_bool(qp.get("low_stock"))
         if low_stock is True:
-            # basic low-stock: <= reorder_point OR <= 0
+            # simple low-stock: <= reorder_point OR <= 0
             qs = qs.filter(quantity_on_hand__lte=0) | qs.filter(quantity_on_hand__lte=qs.values("reorder_point"))
 
         preferred_station = qp.get("preferred_station")
@@ -146,7 +120,6 @@ class ConsumableViewSet(InventoryBaseViewSet):
 
     def get_shop_queryset(self, shop):
         qs = Consumable.objects.filter(shop=shop)
-
         qp = self.request.query_params
 
         is_active = parse_bool(qp.get("is_active"))
@@ -185,7 +158,6 @@ class EquipmentViewSet(InventoryBaseViewSet):
 
     def get_shop_queryset(self, shop):
         qs = Equipment.objects.filter(shop=shop)
-
         qp = self.request.query_params
 
         is_active = parse_bool(qp.get("is_active"))
@@ -207,17 +179,6 @@ class EquipmentViewSet(InventoryBaseViewSet):
 
 
 class InventoryTransactionViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.ReadOnlyModelViewSet):
-    """
-    Read-only ledger endpoint.
-
-    GET /api/inventory/transactions/
-    Filters:
-      - inventory_type=material|consumable|equipment
-      - inventory_id=<id>
-      - reason=<reason>
-      - project=<id>
-      - station=<id>
-    """
     permission_classes = [IsAuthenticated]
     serializer_class = InventoryTransactionSerializer
     queryset = InventoryTransaction.objects.all()
@@ -228,7 +189,6 @@ class InventoryTransactionViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMix
 
     def get_shop_queryset(self, shop):
         qs = InventoryTransaction.objects.filter(shop=shop)
-
         qp = self.request.query_params
 
         inventory_type = qp.get("inventory_type")
@@ -282,6 +242,9 @@ class InventoryConsumeView(APIView):
         """
         Consume inventory (explicit mutation).
         Creates an InventoryTransaction and updates quantity_on_hand via apply_inventory_transaction().
+
+        Supports optional BOM snapshot provenance:
+          bom_snapshot_type + bom_snapshot_id (must match project + inventory item).
         """
         shop = get_shop_for_user(request.user)
         if not shop:
@@ -295,12 +258,14 @@ class InventoryConsumeView(APIView):
         inventory_id = data["inventory_id"]
         quantity = data["quantity"]
 
-        # Consume is a negative delta
         quantity_delta = -quantity
 
         project_id = data.get("project_id")
         station_id = data.get("station_id")
         notes = data.get("notes", "")
+
+        bom_snapshot_type = data.get("bom_snapshot_type") or ""
+        bom_snapshot_id = data.get("bom_snapshot_id")
 
         created_by = _get_employee(shop, request.user)
 
@@ -320,16 +285,51 @@ class InventoryConsumeView(APIView):
             if not station:
                 raise ValidationError({"station_id": "Invalid station."})
 
+        # Validate snapshot provenance if provided
+        if bom_snapshot_type and bom_snapshot_id:
+            if not project:
+                raise ValidationError({"bom_snapshot": "project_id is required when using BOM snapshot provenance."})
+
+            snap = None
+            if bom_snapshot_type == InventoryTransaction.InventoryType.MATERIAL:
+                Snap = __import__("projects.models", fromlist=["ProjectMaterialSnapshot"]).ProjectMaterialSnapshot
+                snap = Snap.objects.filter(id=bom_snapshot_id, project_id=project.id).first()
+                if not snap:
+                    raise ValidationError({"bom_snapshot_id": "Invalid material snapshot for this project."})
+                if snap.material_id and snap.material_id != inventory_id:
+                    raise ValidationError({"inventory_id": "Inventory item does not match the selected snapshot."})
+
+            elif bom_snapshot_type == InventoryTransaction.InventoryType.CONSUMABLE:
+                Snap = __import__("projects.models", fromlist=["ProjectConsumableSnapshot"]).ProjectConsumableSnapshot
+                snap = Snap.objects.filter(id=bom_snapshot_id, project_id=project.id).first()
+                if not snap:
+                    raise ValidationError({"bom_snapshot_id": "Invalid consumable snapshot for this project."})
+                if snap.consumable_id and snap.consumable_id != inventory_id:
+                    raise ValidationError({"inventory_id": "Inventory item does not match the selected snapshot."})
+
+            elif bom_snapshot_type == InventoryTransaction.InventoryType.EQUIPMENT:
+                Snap = __import__("projects.models", fromlist=["ProjectEquipmentSnapshot"]).ProjectEquipmentSnapshot
+                snap = Snap.objects.filter(id=bom_snapshot_id, project_id=project.id).first()
+                if not snap:
+                    raise ValidationError({"bom_snapshot_id": "Invalid equipment snapshot for this project."})
+                if snap.equipment_id and snap.equipment_id != inventory_id:
+                    raise ValidationError({"inventory_id": "Inventory item does not match the selected snapshot."})
+
+            else:
+                raise ValidationError({"bom_snapshot_type": "Invalid bom_snapshot_type."})
+
         txn = apply_inventory_transaction(
             shop=shop,
             inventory_type=inventory_type,
             inventory_id=inventory_id,
             quantity_delta=quantity_delta,
-            reason=InventoryTransaction.Reason.CONSUMPTION,
+            reason=InventoryTransaction.Reason.CONSUME,
             created_by=created_by,
             project=project,
             station=station,
             notes=notes,
+            bom_snapshot_type=bom_snapshot_type,
+            bom_snapshot_id=bom_snapshot_id,
         )
 
         out = InventoryTransactionSerializer(txn, context={"request": request}).data
@@ -340,11 +340,6 @@ class InventoryAdjustView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """
-        Explicit adjustment endpoint (no silent mutations).
-
-        POST /api/inventory/adjust/
-        """
         shop = get_shop_for_user(request.user)
         if not shop:
             raise ValidationError({"detail": "Current user has no shop configured."})
