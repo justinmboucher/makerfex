@@ -21,8 +21,6 @@ import type {
 import { consumeInventory, listInventoryTransactions } from "../../api/inventory";
 import type { InventoryType, InventoryTransaction } from "../../api/inventory";
 
-import TasksTable from "../../components/makerfex/TasksTable";
-
 function formatDate(d: string | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString();
