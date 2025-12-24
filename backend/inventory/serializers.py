@@ -59,7 +59,7 @@ class EquipmentSerializer(InventoryItemBaseSerializer):
     class Meta(InventoryItemBaseSerializer.Meta):
         model = Equipment
         fields = InventoryItemBaseSerializer.Meta.fields + [
-            "equipment_type"
+            "equipment_type",
             "serial_number",
             "purchase_date",
             "warranty_expiration",
