@@ -8,12 +8,55 @@
 
 import axiosClient from "./axiosClient";
 
+export type ProjectMaterialSnapshot = {
+  id: number;
+  project: number;
+  source_template: number | null;
+  material: number | null;
+  material_name: string;
+  quantity: string; // DRF Decimal -> string
+  unit: string;
+  unit_cost_snapshot: string | null; // DRF Decimal -> string | null
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProjectConsumableSnapshot = {
+  id: number;
+  project: number;
+  source_template: number | null;
+  consumable: number | null;
+  consumable_name: string;
+  quantity: string;
+  unit: string;
+  unit_cost_snapshot: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProjectEquipmentSnapshot = {
+  id: number;
+  project: number;
+  source_template: number | null;
+  equipment: number | null;
+  equipment_name: string;
+  quantity: string;
+  unit: string;
+  unit_cost_snapshot: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Project = {
   id: number;
   shop: number;
-
   customer: number | null;
   customer_name: string | null;
+
+  product_template: number | null;
 
   photo_url: string | null;
 
@@ -52,6 +95,11 @@ export type Project = {
 
   is_archived: boolean;
 
+  // NEW: BOM snapshots (immutable, read-only)
+  material_snapshots?: ProjectMaterialSnapshot[];
+  consumable_snapshots?: ProjectConsumableSnapshot[];
+  equipment_snapshots?: ProjectEquipmentSnapshot[];
+
   created_at: string;
   updated_at: string;
 };
@@ -87,9 +135,6 @@ export type CreateProjectFromTemplatePayload = {
 export async function createProjectFromTemplate(
   payload: CreateProjectFromTemplatePayload
 ): Promise<Project> {
-  const res = await axiosClient.post<Project>(
-    "/projects/create_from_template/",
-    payload
-  );
+  const res = await axiosClient.post<Project>("/projects/create_from_template/", payload);
   return res.data;
 }

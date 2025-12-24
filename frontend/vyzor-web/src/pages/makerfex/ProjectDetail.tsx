@@ -1,21 +1,34 @@
 // src/pages/makerfex/ProjectDetail.tsx
 // ============================================================================
-// Makerfex Project Detail (Read-only)
+// Makerfex Project Detail
 // ----------------------------------------------------------------------------
-// Adds embedded Tasks table (server-driven) scoped to this project.
+// Adds:
+// - Read-only BOM snapshots display (materials/consumables/equipment)
+// - Log usage (calls /api/inventory/consume/ with BOM snapshot provenance)
 // ============================================================================
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Badge, Button, Card, Col, Row, Spinner, Table } from "react-bootstrap";
+import { Alert, Badge, Button, Card, Col, Form, Row, Spinner, Table } from "react-bootstrap";
 
 import { getProject, listProjects } from "../../api/projects";
-import type { Project } from "../../api/projects";
-import TasksTable from "../../components/makerfex/TasksTable";
+import type {
+  Project,
+  ProjectConsumableSnapshot,
+  ProjectEquipmentSnapshot,
+  ProjectMaterialSnapshot,
+} from "../../api/projects";
+import { consumeInventory, listInventoryTransactions } from "../../api/inventory";
+import type { InventoryType, InventoryTransaction } from "../../api/inventory";
 
 function formatDate(d: string | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString();
+}
+
+function toNum(v: any): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 export default function ProjectDetail() {
@@ -30,9 +43,21 @@ export default function ProjectDetail() {
   const [relatedErr, setRelatedErr] = useState<string | null>(null);
   const [relatedLoading, setRelatedLoading] = useState(false);
 
+  const [usageMsg, setUsageMsg] = useState<string | null>(null);
+  const [usageErr, setUsageErr] = useState<string | null>(null);
+  const [usageBusy, setUsageBusy] = useState(false);
+
+  const [ledger, setLedger] = useState<InventoryTransaction[]>([]);
+  const [ledgerBusy, setLedgerBusy] = useState(false);
+  const [ledgerErr, setLedgerErr] = useState<string | null>(null);
+
+  // Per-snapshot input amounts (string so we don't fight FormControl)
+  const [consumeInputs, setConsumeInputs] = useState<Record<string, string>>({});
+
   // Load project
   useEffect(() => {
     let alive = true;
+
     (async () => {
       setLoading(true);
       setErr(null);
@@ -40,7 +65,7 @@ export default function ProjectDetail() {
         if (!Number.isFinite(projectId)) throw new Error("Invalid project id");
         const p = await getProject(projectId);
         if (!alive) return;
-        setData(p as any);
+        setData(p);
       } catch (e: any) {
         if (!alive) return;
         setErr(e?.response?.data?.detail || e?.message || "Failed to load project");
@@ -49,6 +74,7 @@ export default function ProjectDetail() {
         setLoading(false);
       }
     })();
+
     return () => {
       alive = false;
     };
@@ -57,8 +83,9 @@ export default function ProjectDetail() {
   // Load related projects (same customer), excluding this project
   useEffect(() => {
     let alive = true;
+
     (async () => {
-      const customerId = (data as any)?.customer as number | null | undefined;
+      const customerId = data?.customer ?? null;
       if (!customerId) {
         setRelated([]);
         setRelatedErr(null);
@@ -68,11 +95,11 @@ export default function ProjectDetail() {
 
       setRelatedLoading(true);
       setRelatedErr(null);
+
       try {
-        const { items } = await listProjects({ customer: customerId } as any);
+        const { items } = await listProjects({ customer: customerId });
         if (!alive) return;
-        const filtered = (items || []).filter((p: any) => p.id !== projectId);
-        setRelated(filtered as any);
+        setRelated((items || []).filter((p) => p.id !== projectId));
       } catch (e: any) {
         if (!alive) return;
         setRelatedErr(e?.response?.data?.detail || e?.message || "Failed to load related projects");
@@ -81,159 +108,392 @@ export default function ProjectDetail() {
         setRelatedLoading(false);
       }
     })();
+
     return () => {
       alive = false;
     };
   }, [data, projectId]);
 
+  // Load ledger (transactions scoped to this project)
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      if (!Number.isFinite(projectId)) return;
+
+      setLedgerBusy(true);
+      setLedgerErr(null);
+      try {
+        const { items } = await listInventoryTransactions({ project: projectId, ordering: "-created_at" });
+        if (!alive) return;
+        setLedger(items || []);
+      } catch (e: any) {
+        if (!alive) return;
+        setLedgerErr(e?.response?.data?.detail || e?.message || "Failed to load inventory ledger");
+      } finally {
+        if (!alive) return;
+        setLedgerBusy(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [projectId]);
+
   const title = useMemo(() => {
     if (!data) return `Project #${id}`;
-    return (data as any).name || `Project #${id}`;
+    return data.name || `Project #${id}`;
   }, [data, id]);
 
-  const customerId = (data as any)?.customer as number | null | undefined;
-  const customerName = (data as any)?.customer_name as string | null | undefined;
-  const canLogSale = Boolean((data as any)?.can_log_sale);
-  const stageName = (data as any)?.current_stage_name || (data as any)?.current_stage || "—";
+  const customerId = data?.customer ?? null;
+  const customerName = data?.customer_name ?? null;
+
+  const canLogSale = Boolean(data?.can_log_sale);
+  const stageName = (data?.current_stage_name as any) || (data?.current_stage as any) || "—";
+
+  const stationId = toNum(data?.station);
+
+  function snapshotKey(kind: InventoryType, snapshotId: number) {
+    return `${kind}:${snapshotId}`;
+  }
+
+  async function handleConsumeFromSnapshot(opts: {
+    kind: InventoryType;
+    snapshotId: number;
+    inventoryId: number | null;
+    defaultQty?: string;
+  }) {
+    setUsageMsg(null);
+    setUsageErr(null);
+
+    if (!data) return;
+
+    const key = snapshotKey(opts.kind, opts.snapshotId);
+    const qty = (consumeInputs[key] ?? opts.defaultQty ?? "").trim();
+
+    if (!qty) {
+      setUsageErr("Enter a quantity to log.");
+      return;
+    }
+    if (!opts.inventoryId) {
+      setUsageErr("This snapshot is not linked to an inventory item (missing ID).");
+      return;
+    }
+
+    setUsageBusy(true);
+    try {
+      const res = await consumeInventory({
+        inventory_type: opts.kind,
+        inventory_id: opts.inventoryId,
+        quantity: qty,
+        project_id: data.id,
+        station_id: stationId ?? undefined,
+        bom_snapshot_type: opts.kind,
+        bom_snapshot_id: opts.snapshotId,
+        notes: "",
+      });
+
+      setUsageMsg(res?.detail || "Usage logged.");
+
+      // Refresh ledger
+      const { items } = await listInventoryTransactions({ project: data.id, ordering: "-created_at" });
+      setLedger(items || []);
+
+      // Clear input
+      setConsumeInputs((prev) => ({ ...prev, [key]: "" }));
+    } catch (e: any) {
+      setUsageErr(e?.response?.data?.detail || e?.message || "Failed to log usage");
+    } finally {
+      setUsageBusy(false);
+    }
+  }
+
+  function renderSnapshotTable(kind: InventoryType) {
+    if (!data) return null;
+
+    const rows =
+      kind === "material"
+        ? (data.material_snapshots || []) as ProjectMaterialSnapshot[]
+        : kind === "consumable"
+          ? (data.consumable_snapshots || []) as ProjectConsumableSnapshot[]
+          : (data.equipment_snapshots || []) as ProjectEquipmentSnapshot[];
+
+    const title =
+      kind === "material" ? "Materials" : kind === "consumable" ? "Consumables" : "Equipment";
+
+    if (!rows.length) {
+      return (
+        <Card className="mb-3">
+          <Card.Body>
+            <Card.Title className="mb-2">{title}</Card.Title>
+            <div className="text-muted">No snapshots.</div>
+          </Card.Body>
+        </Card>
+      );
+    }
+
+    return (
+      <Card className="mb-3">
+        <Card.Body>
+          <Card.Title className="mb-2">{title}</Card.Title>
+
+          <div className="table-responsive">
+            <Table size="sm" bordered hover className="mb-0">
+              <thead>
+                <tr>
+                  <th style={{ width: "32%" }}>Item</th>
+                  <th style={{ width: "12%" }}>Planned</th>
+                  <th style={{ width: "12%" }}>Unit</th>
+                  <th style={{ width: "16%" }}>Unit Cost</th>
+                  <th style={{ width: "28%" }}>Log Usage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r: any) => {
+                  const snapId = r.id as number;
+                  const key = snapshotKey(kind, snapId);
+
+                  const itemName =
+                    kind === "material"
+                      ? r.material_name
+                      : kind === "consumable"
+                        ? r.consumable_name
+                        : r.equipment_name;
+
+                  const inventoryId =
+                    kind === "material" ? (r.material as number | null)
+                      : kind === "consumable" ? (r.consumable as number | null)
+                        : (r.equipment as number | null);
+
+                  const planned = r.quantity ?? "—";
+                  const unit = r.unit ?? "—";
+                  const unitCost = r.unit_cost_snapshot ?? "—";
+
+                  return (
+                    <tr key={key}>
+                      <td>
+                        <div className="fw-semibold">{itemName}</div>
+                        {!inventoryId ? (
+                          <div className="text-muted small">No inventory link</div>
+                        ) : (
+                          <div className="text-muted small">Inventory ID: {inventoryId}</div>
+                        )}
+                      </td>
+                      <td>{planned}</td>
+                      <td>{unit}</td>
+                      <td>{unitCost}</td>
+                      <td>
+                        <div className="d-flex gap-2 align-items-center">
+                          <Form.Control
+                            size="sm"
+                            placeholder="qty"
+                            value={consumeInputs[key] ?? ""}
+                            onChange={(e) =>
+                              setConsumeInputs((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                            disabled={usageBusy}
+                            style={{ maxWidth: 140 }}
+                          />
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            disabled={usageBusy || !inventoryId}
+                            onClick={() =>
+                              handleConsumeFromSnapshot({
+                                kind,
+                                snapshotId: snapId,
+                                inventoryId,
+                              })
+                            }
+                          >
+                            {usageBusy ? "…" : "Log"}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </div>
+        </Card.Body>
+      </Card>
+    );
+  }
 
   return (
     <>
-      <h3>{title}</h3>
+      <h3 className="mb-3">{title}</h3>
 
       <Button variant="link" className="p-0 mb-3" onClick={() => history.back()}>
         ← Back
       </Button>
 
       {loading ? (
-        <div className="d-flex align-items-center gap-2">
-          <Spinner animation="border" size="sm" /> <span>Loading…</span>
-        </div>
+        <Spinner animation="border" />
       ) : err ? (
-        <div>{err}</div>
+        <Alert variant="danger">{err}</Alert>
       ) : !data ? (
-        <div>Not found.</div>
+        <Alert variant="warning">Not found.</Alert>
       ) : (
         <>
-          <Card className="mb-4">
+          <Card className="mb-3">
             <Card.Body>
-              <Row className="align-items-start">
+              <Row className="g-3">
                 <Col md={8}>
-                  <h4 className="mb-2">{(data as any).name}</h4>
+                  <h4 className="mb-1">{data.name}</h4>
+                  {data.reference_code ? <div className="text-muted">Ref: {data.reference_code}</div> : null}
 
-                  {(data as any).reference_code ? (
-                    <div className="text-muted mb-2">Ref: {(data as any).reference_code}</div>
-                  ) : null}
-
-                  <div className="mb-3">
-                    <Badge bg="primary" className="me-2">
-                      {(data as any).status}
+                  <div className="mt-2 d-flex flex-wrap gap-2 align-items-center">
+                    <Badge bg="secondary">{data.status}</Badge>
+                    {data.priority ? <Badge bg="info">{data.priority}</Badge> : null}
+                    <Badge bg="light" text="dark">
+                      Stage: {stageName}
                     </Badge>
-                    {(data as any).priority ? (
-                      <Badge bg="warning" text="dark">
-                        {(data as any).priority}
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  <div className="text-muted">
-                    Stage: <strong>{stageName}</strong>
-                  </div>
-                </Col>
-
-                <Col md={4} className="text-md-end mt-3 mt-md-0">
-                  <Button
-                    variant={canLogSale ? "outline-primary" : "outline-secondary"}
-                    disabled={!canLogSale}
-                    onClick={() => alert("Log Sale is not implemented yet. (Gate is working ✅)")}
-                  >
-                    Log Sale
-                  </Button>
-                </Col>
-              </Row>
-
-              <Row className="mt-4">
-                <Col md={3}>
-                  <div className="text-muted">Due</div>
-                  <div>{formatDate((data as any).due_date)}</div>
-                </Col>
-                <Col md={3}>
-                  <div className="text-muted">Assigned To</div>
-                  <div>
-                    {(data as any).assigned_to ? (
-                      <span>{(data as any).assigned_to_name || "Employee"}</span>
+                    {canLogSale ? (
+                      <Button
+                        size="sm"
+                        variant="outline-success"
+                        onClick={() => alert("Log Sale is not implemented yet. (Gate is working ✅)")}
+                      >
+                        Log Sale
+                      </Button>
                     ) : (
-                      "—"
+                      <Button size="sm" variant="outline-secondary" disabled>
+                        Log Sale
+                      </Button>
                     )}
                   </div>
-                </Col>
-                <Col md={3}>
-                  <div className="text-muted">Customer</div>
-                  <div>
-                    {customerId ? (
-                      <Link to={`/customers/${customerId}`}>{customerName || "Customer"}</Link>
-                    ) : (
-                      "—"
-                    )}
+
+                  <div className="mt-3">
+                    <div className="text-muted small mb-1">Description</div>
+                    <div>{data.description || "—"}</div>
                   </div>
                 </Col>
-                <Col md={3}>
-                  <div className="text-muted">Description</div>
-                  <div>{(data as any).description || "—"}</div>
+
+                <Col md={4}>
+                  <Table size="sm" borderless className="mb-0">
+                    <tbody>
+                      <tr>
+                        <td className="text-muted">Due</td>
+                        <td className="text-end">{formatDate(data.due_date)}</td>
+                      </tr>
+                      <tr>
+                        <td className="text-muted">Assigned To</td>
+                        <td className="text-end">{data.assigned_to ? data.assigned_to_name || "Employee" : "—"}</td>
+                      </tr>
+                      <tr>
+                        <td className="text-muted">Customer</td>
+                        <td className="text-end">
+                          {customerId ? (
+                            <Link to={`/makerfex/customers/${customerId}`}>{customerName || "Customer"}</Link>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </Table>
                 </Col>
               </Row>
             </Card.Body>
           </Card>
 
-          {/* ✅ Tasks for this project */}
-          <TasksTable
-            title="Tasks for this project"
-            lockedParams={{ project: projectId }}
-            showStationFilter={true}
-            showStageFilter={true}
-            presetStorageKey={`makerfex.project.${projectId}.tasks.tablePresets`}
-          />
+          {usageMsg ? <Alert variant="success">{usageMsg}</Alert> : null}
+          {usageErr ? <Alert variant="danger">{usageErr}</Alert> : null}
 
-          {/* Related Projects */}
-          <h5 className="mt-4">Related Projects</h5>
+          <h5 className="mt-4 mb-2">BOM Snapshots</h5>
+          {renderSnapshotTable("material")}
+          {renderSnapshotTable("consumable")}
+          {renderSnapshotTable("equipment")}
 
-          {relatedLoading ? (
-            <div className="d-flex align-items-center gap-2">
-              <Spinner animation="border" size="sm" /> <span>Loading…</span>
-            </div>
-          ) : !customerId ? (
-            <div className="text-muted">No customer assigned.</div>
-          ) : relatedErr ? (
-            <div>{relatedErr}</div>
-          ) : related.length === 0 ? (
-            <div className="text-muted">No other projects for this customer.</div>
-          ) : (
-            <Card className="mt-2">
-              <Card.Body>
-                <Table responsive hover>
-                  <thead>
-                    <tr>
-                      <th>Project</th>
-                      <th>Status</th>
-                      <th>Assigned To</th>
-                      <th>Due</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {related.map((p: any) => (
-                      <tr key={p.id}>
-                        <td>
-                          <Link to={`/projects/${p.id}`}>{p.name}</Link>
-                        </td>
-                        <td>{p.status ?? "—"}</td>
-                        <td>{p.assigned_to ? p.assigned_to_name || "Employee" : "—"}</td>
-                        <td>{formatDate(p.due_date)}</td>
+          <h5 className="mt-4 mb-2">Inventory Ledger (This Project)</h5>
+          <Card className="mb-4">
+            <Card.Body>
+              {ledgerBusy ? (
+                <Spinner animation="border" />
+              ) : ledgerErr ? (
+                <Alert variant="danger">{ledgerErr}</Alert>
+              ) : ledger.length === 0 ? (
+                <div className="text-muted">No inventory transactions logged for this project.</div>
+              ) : (
+                <div className="table-responsive">
+                  <Table size="sm" bordered hover className="mb-0">
+                    <thead>
+                      <tr>
+                        <th>When</th>
+                        <th>Type</th>
+                        <th>Delta</th>
+                        <th>Reason</th>
+                        <th>Snapshot</th>
+                        <th>Notes</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </Card.Body>
-            </Card>
-          )}
+                    </thead>
+                    <tbody>
+                      {ledger.map((t) => (
+                        <tr key={t.id}>
+                          <td>{new Date(t.created_at).toLocaleString()}</td>
+                          <td>{t.inventory_type}</td>
+                          <td>{t.quantity_delta}</td>
+                          <td>{t.reason}</td>
+                          <td>
+                            {t.bom_snapshot_type && t.bom_snapshot_id
+                              ? `${t.bom_snapshot_type} #${t.bom_snapshot_id}`
+                              : "—"}
+                          </td>
+                          <td>{t.notes || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+
+          {/* ✅ Tasks for this project */}
+          <Link to={`/makerfex/tasks?project=${projectId}`}>View Tasks for this project</Link>
+
+          <h5 className="mt-4 mb-2">Related Projects</h5>
+          <Card className="mb-4">
+            <Card.Body>
+              {relatedLoading ? (
+                <Spinner animation="border" />
+              ) : !customerId ? (
+                <div className="text-muted">No customer assigned.</div>
+              ) : relatedErr ? (
+                <Alert variant="danger">{relatedErr}</Alert>
+              ) : related.length === 0 ? (
+                <div className="text-muted">No other projects for this customer.</div>
+              ) : (
+                <div className="table-responsive">
+                  <Table size="sm" bordered hover className="mb-0">
+                    <thead>
+                      <tr>
+                        <th>Project</th>
+                        <th>Status</th>
+                        <th>Assigned</th>
+                        <th>Due</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {related.map((p) => (
+                        <tr key={p.id}>
+                          <td>
+                            <Link to={`/makerfex/projects/${p.id}`}>{p.name}</Link>
+                          </td>
+                          <td>{p.status ?? "—"}</td>
+                          <td>{p.assigned_to ? p.assigned_to_name || "Employee" : "—"}</td>
+                          <td>{formatDate(p.due_date)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
         </>
       )}
     </>

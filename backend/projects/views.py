@@ -2,23 +2,11 @@
 # ============================================================================
 # Projects ViewSet (Server-Driven Tables)
 # ----------------------------------------------------------------------------
-# Canonical list contract:
-# - ?q=        free-text search (QueryParamSearchFilter)
-# - ?ordering= server-side ordering (asc/desc)
-# - ?page= / ?page_size= pagination (DRF settings)
-#
-# Backend-authoritative filters (used by UI presets + selects):
-# - ?customer= / ?customer_id=
-# - ?assigned_to= / ?assigned_to_id=
-# - ?current_stage= / ?stage=
-# - ?station= / ?station_id=
-# - ?status= (active|on_hold|completed|cancelled)
-# - ?is_completed=true/false   (stage-final truth)
-# - ?vip=1                     (customer VIP flag if present)
-# - ?overdue=1                 (due_date < today AND not completed/cancelled)
-#
-# Tenant safety:
-# - Querysets are always scoped to request.user's shop via get_shop_for_user()
+# Adds:
+# - Immutable BOM snapshots are prefetched and serialized on detail.
+# - Stage transitions remain explicit via /transition/.
+# - Inventory usage logging is done via inventory consume endpoint
+#   (project_id + bom_snapshot provenance).
 # ============================================================================
 
 from django.db import transaction
@@ -35,7 +23,6 @@ from accounts.models import Employee
 from accounts.utils import get_shop_for_user
 from makerfex_backend.filters import QueryParamSearchFilter, parse_bool
 from makerfex_backend.mixins import ServerTableViewSetMixin, ShopScopedQuerysetMixin
-
 from products.models import ProductTemplate
 from projects.models import (
     Project,
@@ -52,21 +39,15 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
     serializer_class = ProjectSerializer
     queryset = Project.objects.none()
 
-    # Canonical server-driven table backends
     filter_backends = [QueryParamSearchFilter, OrderingFilter]
-
-    # Free-text search fields (QueryParamSearchFilter uses ?q=)
     search_fields = [
         "name",
         "reference_code",
         "description",
-        # customer name bits (safe even if customer null)
         "customer__first_name",
         "customer__last_name",
         "customer__company_name",
     ]
-
-    # Explicit ordering support (?ordering=field or ?ordering=-field)
     ordering_fields = [
         "name",
         "reference_code",
@@ -80,7 +61,6 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
         "station__name",
         "customer__last_name",
         "assigned_to__last_name",
-        # workflow/stage ordering (useful for UI sorts)
         "current_stage__order",
         "current_stage__name",
     ]
@@ -90,7 +70,7 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
         if not workflow_id:
             return None
         return (
-            WorkflowStage.objects.filter(workflow_id=workflow_id)
+            WorkflowStage.objects.filter(workflow_id=workflow_id, is_active=True)
             .order_by("order", "id")
             .first()
         )
@@ -107,8 +87,12 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
         qs = (
             Project.objects.filter(shop=shop, is_archived=False)
             .select_related("customer", "assigned_to", "workflow", "current_stage", "station")
+            .prefetch_related(
+                "material_snapshots",
+                "consumable_snapshots",
+                "equipment_snapshots",
+            )
             .annotate(
-                # Stage-truth completion: completed means current_stage.is_final
                 is_completed=Case(
                     When(current_stage__is_final=True, then=Value(True)),
                     default=Value(False),
@@ -119,7 +103,6 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
 
         qp = self.request.query_params
 
-        # Compatibility aliases
         customer_id = qp.get("customer") or qp.get("customer_id")
         if customer_id:
             qs = qs.filter(customer_id=customer_id)
@@ -128,31 +111,24 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
         if assigned_to_id:
             qs = qs.filter(assigned_to_id=assigned_to_id)
 
-        # Stage filter
         stage_id = qp.get("current_stage") or qp.get("stage")
         if stage_id:
             qs = qs.filter(current_stage_id=stage_id)
 
-        # Station filter (canonical: Project.station_id)
         station_id = qp.get("station") or qp.get("station_id")
         if station_id:
-            # Transitional compatibility:
-            # Include (project.station == station) OR (assigned_to employee is in station)
             qs = qs.filter(Q(station_id=station_id) | Q(assigned_to__stations__id=station_id)).distinct()
 
-        # Status filter
         status_value = qp.get("status")
         if status_value:
             qs = qs.filter(status=status_value)
 
-        # Completion filter: ?is_completed=true/false
         is_completed = parse_bool(qp.get("is_completed"))
         if is_completed is True:
             qs = qs.filter(current_stage__is_final=True)
         elif is_completed is False:
             qs = qs.exclude(current_stage__is_final=True)
 
-        # VIP filter: ?vip=1
         vip = parse_bool(qp.get("vip"))
         if vip is True:
             try:
@@ -160,7 +136,6 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
             except Exception:
                 pass
 
-        # Overdue filter: ?overdue=1
         overdue = parse_bool(qp.get("overdue"))
         if overdue is True:
             today = timezone.localdate()
@@ -174,7 +149,6 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
         shop = self.get_shop()
         if not shop:
             raise ValidationError({"detail": "Current user has no shop configured."})
-
         emp = self.get_employee(shop)
         project = serializer.save(shop=shop, created_by=emp)
 
@@ -197,10 +171,7 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
             raise ValidationError({"product_template_id": "This field is required."})
 
         try:
-            template = ProductTemplate.objects.select_related("default_workflow").get(
-                id=template_id,
-                shop=shop,
-            )
+            template = ProductTemplate.objects.select_related("default_workflow").get(id=template_id, shop=shop)
         except ProductTemplate.DoesNotExist:
             raise ValidationError({"product_template_id": "Invalid template."})
 
@@ -233,7 +204,6 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
                     unit_cost_snapshot=req.material.unit_cost,
                     notes=req.notes,
                 )
-
             for req in template.consumable_requirements.all():
                 ProjectConsumableSnapshot.objects.create(
                     project=project,
@@ -245,7 +215,6 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
                     unit_cost_snapshot=req.consumable.unit_cost,
                     notes=req.notes,
                 )
-
             for req in template.equipment_requirements.all():
                 ProjectEquipmentSnapshot.objects.create(
                     project=project,
@@ -259,14 +228,12 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
                 )
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
+
     def destroy(self, request, *args, **kwargs):
         """
-        No destructive deletes:
-        - Always archive (is_archived=True)
+        No destructive deletes: archive.
         """
         project = self.get_object()
-
         if not getattr(project, "is_archived", False):
             project.is_archived = True
             project.save(update_fields=["is_archived"])
@@ -296,11 +263,9 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
         if not to_stage_id:
             raise ValidationError({"to_stage_id": "This field is required."})
 
-        # Archived projects are read-only
         if project.is_archived:
             raise ValidationError({"detail": "Archived projects cannot transition stages."})
 
-        # Status gates
         if project.status == Project.Status.CANCELLED:
             raise ValidationError({"detail": "Cancelled projects cannot transition stages."})
 
@@ -313,7 +278,6 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
         if not project.workflow_id:
             raise ValidationError({"detail": "Project has no workflow assigned."})
 
-        # Must be an ACTIVE stage in the same workflow
         try:
             to_stage = WorkflowStage.objects.get(
                 id=to_stage_id,
@@ -326,17 +290,14 @@ class ProjectViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMixin, viewsets.
         now = timezone.now()
 
         with transaction.atomic():
-            from_stage = project.current_stage
             project.current_stage = to_stage
 
-            # Status consistency rules
             if to_stage.is_final:
                 if project.status != Project.Status.COMPLETED:
                     project.status = Project.Status.COMPLETED
                 if not project.completed_at:
                     project.completed_at = now
             else:
-                # If leaving final stage, un-complete (unless force keeps status?)
                 if project.status == Project.Status.COMPLETED:
                     project.status = Project.Status.ACTIVE
                     project.completed_at = None
