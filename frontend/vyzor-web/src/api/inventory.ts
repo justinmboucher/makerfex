@@ -10,45 +10,51 @@
 
 import axiosClient from "./axiosClient";
 
+export type InventoryType = "material" | "consumable" | "equipment";
+
 export type InventoryBase = {
   id: number;
   shop: number;
-
   image: string | null;
   image_url: string | null;
-
   name: string;
   sku: string;
   description: string;
-
   unit_of_measure: string;
-
-  // DRF Decimal -> string
-  quantity_on_hand: string;
-  reorder_point: string;
-
-  // DRF Decimal -> string | null
-  unit_cost: string | null;
-
+  quantity_on_hand: string; // DRF Decimal -> string
+  reorder_point: string; // DRF Decimal -> string
+  unit_cost: string | null; // DRF Decimal -> string | null
   preferred_station: number | null;
   is_active: boolean;
-
   created_at: string;
   updated_at: string;
 };
 
-export type Material = InventoryBase & {
-  material_type: string;
-};
-
-export type Consumable = InventoryBase & {
-  consumable_type: string;
-};
-
+export type Material = InventoryBase & { material_type: string };
+export type Consumable = InventoryBase & { consumable_type: string };
 export type Equipment = InventoryBase & {
   serial_number: string;
   purchase_date: string | null;
   warranty_expiration: string | null;
+};
+
+export type InventoryTransaction = {
+  id: number;
+  shop: number;
+  inventory_type: InventoryType;
+  material: number | null;
+  consumable: number | null;
+  equipment: number | null;
+  project: number | null;
+  bom_snapshot_type: string;
+  bom_snapshot_id: number | null;
+  quantity_delta: string;
+  reason: "consume" | "adjustment" | "waste" | "return";
+  station: number | null;
+  created_by: number | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type DRFPaginated<T> = {
@@ -81,4 +87,30 @@ export async function listConsumables(params?: Record<string, any>) {
 export async function listEquipment(params?: Record<string, any>) {
   const res = await axiosClient.get<DRFPaginated<Equipment> | Equipment[]>(BASE_EQUIPMENT, { params });
   return unwrapList<Equipment>(res.data);
+}
+
+export type ConsumeInventoryPayload = {
+  inventory_type: InventoryType;
+  inventory_id: number;
+  quantity: string | number;
+
+  project_id?: number;
+  station_id?: number;
+  notes?: string;
+
+  bom_snapshot_type?: InventoryType;
+  bom_snapshot_id?: number;
+};
+
+export async function consumeInventory(payload: ConsumeInventoryPayload) {
+  const res = await axiosClient.post("/inventory/consume/", payload);
+  return res.data as { detail: string; transaction: InventoryTransaction };
+}
+
+export async function listInventoryTransactions(params?: Record<string, any>) {
+  const res = await axiosClient.get<DRFPaginated<InventoryTransaction> | InventoryTransaction[]>(
+    "/inventory/transactions/",
+    { params }
+  );
+  return unwrapList<InventoryTransaction>(res.data);
 }
