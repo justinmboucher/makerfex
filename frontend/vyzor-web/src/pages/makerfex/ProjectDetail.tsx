@@ -5,10 +5,11 @@
 // Adds:
 // - Read-only BOM snapshots display (materials/consumables/equipment)
 // - Log usage (calls /api/inventory/consume/ with BOM snapshot provenance)
+// - Log Sale via reusable LogSaleModal (POST /api/sales/orders/log_from_project/) ✅ Commit C
 // ============================================================================
 
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, Badge, Button, Card, Col, Form, Row, Spinner, Table } from "react-bootstrap";
 
 import { getProject, listProjects } from "../../api/projects";
@@ -18,8 +19,11 @@ import type {
   ProjectEquipmentSnapshot,
   ProjectMaterialSnapshot,
 } from "../../api/projects";
+
 import { consumeInventory, listInventoryTransactions } from "../../api/inventory";
 import type { InventoryType, InventoryTransaction } from "../../api/inventory";
+
+import LogSaleModal from "../../components/makerfex/LogSaleModal";
 
 function formatDate(d: string | null | undefined) {
   if (!d) return "—";
@@ -33,6 +37,8 @@ function toNum(v: any): number | null {
 
 export default function ProjectDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+
   const projectId = Number(id);
 
   const [data, setData] = useState<Project | null>(null);
@@ -54,6 +60,10 @@ export default function ProjectDetail() {
   // Per-snapshot input amounts (string so we don't fight FormControl)
   const [consumeInputs, setConsumeInputs] = useState<Record<string, string>>({});
 
+  // ---- Log Sale (reusable modal) ------------------------------------------
+  const [showSaleModal, setShowSaleModal] = useState(false);
+  // -------------------------------------------------------------------------
+
   // Load project
   useEffect(() => {
     let alive = true;
@@ -61,6 +71,7 @@ export default function ProjectDetail() {
     (async () => {
       setLoading(true);
       setErr(null);
+
       try {
         if (!Number.isFinite(projectId)) throw new Error("Invalid project id");
         const p = await getProject(projectId);
@@ -86,6 +97,7 @@ export default function ProjectDetail() {
 
     (async () => {
       const customerId = data?.customer ?? null;
+
       if (!customerId) {
         setRelated([]);
         setRelatedErr(null);
@@ -102,7 +114,9 @@ export default function ProjectDetail() {
         setRelated((items || []).filter((p) => p.id !== projectId));
       } catch (e: any) {
         if (!alive) return;
-        setRelatedErr(e?.response?.data?.detail || e?.message || "Failed to load related projects");
+        setRelatedErr(
+          e?.response?.data?.detail || e?.message || "Failed to load related projects"
+        );
       } finally {
         if (!alive) return;
         setRelatedLoading(false);
@@ -123,13 +137,19 @@ export default function ProjectDetail() {
 
       setLedgerBusy(true);
       setLedgerErr(null);
+
       try {
-        const { items } = await listInventoryTransactions({ project: projectId, ordering: "-created_at" });
+        const { items } = await listInventoryTransactions({
+          project: projectId,
+          ordering: "-created_at",
+        });
         if (!alive) return;
         setLedger(items || []);
       } catch (e: any) {
         if (!alive) return;
-        setLedgerErr(e?.response?.data?.detail || e?.message || "Failed to load inventory ledger");
+        setLedgerErr(
+          e?.response?.data?.detail || e?.message || "Failed to load inventory ledger"
+        );
       } finally {
         if (!alive) return;
         setLedgerBusy(false);
@@ -147,12 +167,13 @@ export default function ProjectDetail() {
   }, [data, id]);
 
   const customerId = data?.customer ?? null;
-  const customerName = data?.customer_name ?? null;
-
-  const canLogSale = Boolean(data?.can_log_sale);
-  const stageName = (data?.current_stage_name as any) || (data?.current_stage as any) || "—";
-
-  const stationId = toNum(data?.station);
+  const customerName = (data as any)?.customer_name ?? null; // keep compatible with your serializer output
+  const canLogSale = Boolean((data as any)?.can_log_sale);
+  const stageName =
+    ((data as any)?.current_stage_name as any) ||
+    ((data as any)?.current_stage as any) ||
+    "—";
+  const stationId = toNum((data as any)?.station);
 
   function snapshotKey(kind: InventoryType, snapshotId: number) {
     return `${kind}:${snapshotId}`;
@@ -182,6 +203,7 @@ export default function ProjectDetail() {
     }
 
     setUsageBusy(true);
+
     try {
       const res = await consumeInventory({
         inventory_type: opts.kind,
@@ -194,10 +216,13 @@ export default function ProjectDetail() {
         notes: "",
       });
 
-      setUsageMsg(res?.detail || "Usage logged.");
+      setUsageMsg((res as any)?.detail || "Usage logged.");
 
       // Refresh ledger
-      const { items } = await listInventoryTransactions({ project: data.id, ordering: "-created_at" });
+      const { items } = await listInventoryTransactions({
+        project: data.id,
+        ordering: "-created_at",
+      });
       setLedger(items || []);
 
       // Clear input
@@ -214,124 +239,125 @@ export default function ProjectDetail() {
 
     const rows =
       kind === "material"
-        ? (data.material_snapshots || []) as ProjectMaterialSnapshot[]
+        ? ((data as any).material_snapshots || []) as ProjectMaterialSnapshot[]
         : kind === "consumable"
-          ? (data.consumable_snapshots || []) as ProjectConsumableSnapshot[]
-          : (data.equipment_snapshots || []) as ProjectEquipmentSnapshot[];
+        ? ((data as any).consumable_snapshots || []) as ProjectConsumableSnapshot[]
+        : (((data as any).equipment_snapshots || []) as ProjectEquipmentSnapshot[]);
 
-    const title =
+    const label =
       kind === "material" ? "Materials" : kind === "consumable" ? "Consumables" : "Equipment";
 
     if (!rows.length) {
       return (
-        <Card className="mb-3">
-          <Card.Body>
-            <Card.Title className="mb-2">{title}</Card.Title>
-            <div className="text-muted">No snapshots.</div>
-          </Card.Body>
-        </Card>
+        <>
+          <h5 className="mt-3">{label}</h5>
+          <div className="text-muted">No snapshots.</div>
+        </>
       );
     }
 
     return (
-      <Card className="mb-3">
-        <Card.Body>
-          <Card.Title className="mb-2">{title}</Card.Title>
+      <>
+        <h5 className="mt-3">{label}</h5>
 
-          <div className="table-responsive">
-            <Table size="sm" bordered hover className="mb-0">
-              <thead>
-                <tr>
-                  <th style={{ width: "32%" }}>Item</th>
-                  <th style={{ width: "12%" }}>Planned</th>
-                  <th style={{ width: "12%" }}>Unit</th>
-                  <th style={{ width: "16%" }}>Unit Cost</th>
-                  <th style={{ width: "28%" }}>Log Usage</th>
+        <Table responsive size="sm" hover>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Planned</th>
+              <th>Unit</th>
+              <th>Unit Cost</th>
+              <th style={{ width: 220 }}>Log Usage</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((r: any) => {
+              const snapId = r.id as number;
+              const key = snapshotKey(kind, snapId);
+
+              const itemName =
+                kind === "material"
+                  ? r.material_name
+                  : kind === "consumable"
+                  ? r.consumable_name
+                  : r.equipment_name;
+
+              const inventoryId =
+                kind === "material"
+                  ? (r.material as number | null)
+                  : kind === "consumable"
+                  ? (r.consumable as number | null)
+                  : (r.equipment as number | null);
+
+              const planned = r.quantity ?? "—";
+              const unit = r.unit ?? "—";
+              const unitCost = r.unit_cost_snapshot ?? "—";
+
+              return (
+                <tr key={`${kind}-${snapId}`}>
+                  <td>
+                    <div className="fw-semibold">{itemName}</div>
+                    {!inventoryId ? (
+                      <div className="text-muted">No inventory link</div>
+                    ) : (
+                      <div className="text-muted">Inventory ID: {inventoryId}</div>
+                    )}
+                  </td>
+                  <td>{planned}</td>
+                  <td>{unit}</td>
+                  <td>{unitCost}</td>
+                  <td>
+                    <div className="d-flex gap-2">
+                      <Form.Control
+                        size="sm"
+                        placeholder="Qty"
+                        value={consumeInputs[key] ?? ""}
+                        onChange={(e) =>
+                          setConsumeInputs((prev) => ({ ...prev, [key]: e.target.value }))
+                        }
+                        disabled={usageBusy}
+                        style={{ maxWidth: 140 }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={usageBusy || !inventoryId}
+                        onClick={() =>
+                          handleConsumeFromSnapshot({
+                            kind,
+                            snapshotId: snapId,
+                            inventoryId,
+                          })
+                        }
+                      >
+                        {usageBusy ? "…" : "Log"}
+                      </Button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {rows.map((r: any) => {
-                  const snapId = r.id as number;
-                  const key = snapshotKey(kind, snapId);
-
-                  const itemName =
-                    kind === "material"
-                      ? r.material_name
-                      : kind === "consumable"
-                        ? r.consumable_name
-                        : r.equipment_name;
-
-                  const inventoryId =
-                    kind === "material" ? (r.material as number | null)
-                      : kind === "consumable" ? (r.consumable as number | null)
-                        : (r.equipment as number | null);
-
-                  const planned = r.quantity ?? "—";
-                  const unit = r.unit ?? "—";
-                  const unitCost = r.unit_cost_snapshot ?? "—";
-
-                  return (
-                    <tr key={key}>
-                      <td>
-                        <div className="fw-semibold">{itemName}</div>
-                        {!inventoryId ? (
-                          <div className="text-muted small">No inventory link</div>
-                        ) : (
-                          <div className="text-muted small">Inventory ID: {inventoryId}</div>
-                        )}
-                      </td>
-                      <td>{planned}</td>
-                      <td>{unit}</td>
-                      <td>{unitCost}</td>
-                      <td>
-                        <div className="d-flex gap-2 align-items-center">
-                          <Form.Control
-                            size="sm"
-                            placeholder="qty"
-                            value={consumeInputs[key] ?? ""}
-                            onChange={(e) =>
-                              setConsumeInputs((prev) => ({ ...prev, [key]: e.target.value }))
-                            }
-                            disabled={usageBusy}
-                            style={{ maxWidth: 140 }}
-                          />
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            disabled={usageBusy || !inventoryId}
-                            onClick={() =>
-                              handleConsumeFromSnapshot({
-                                kind,
-                                snapshotId: snapId,
-                                inventoryId,
-                              })
-                            }
-                          >
-                            {usageBusy ? "…" : "Log"}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </Table>
-          </div>
-        </Card.Body>
-      </Card>
+              );
+            })}
+          </tbody>
+        </Table>
+      </>
     );
   }
 
   return (
     <>
-      <h3 className="mb-3">{title}</h3>
-
-      <Button variant="link" className="p-0 mb-3" onClick={() => history.back()}>
-        ← Back
-      </Button>
+      <div className="d-flex align-items-center gap-2 mb-3">
+        <Button variant="link" className="p-0" onClick={() => history.back()}>
+          ← Back
+        </Button>
+        <h4 className="mb-0">{title}</h4>
+      </div>
 
       {loading ? (
-        <Spinner animation="border" />
+        <div className="d-flex align-items-center gap-2">
+          <Spinner size="sm" />
+          <div>Loading…</div>
+        </div>
       ) : err ? (
         <Alert variant="danger">{err}</Alert>
       ) : !data ? (
@@ -340,61 +366,68 @@ export default function ProjectDetail() {
         <>
           <Card className="mb-3">
             <Card.Body>
-              <Row className="g-3">
-                <Col md={8}>
-                  <h4 className="mb-1">{data.name}</h4>
-                  {data.reference_code ? <div className="text-muted">Ref: {data.reference_code}</div> : null}
+              <Row className="align-items-start">
+                <Col>
+                  <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <h5 className="mb-0">{data.name}</h5>
 
-                  <div className="mt-2 d-flex flex-wrap gap-2 align-items-center">
-                    <Badge bg="secondary">{data.status}</Badge>
-                    {data.priority ? <Badge bg="info">{data.priority}</Badge> : null}
-                    <Badge bg="light" text="dark">
-                      Stage: {stageName}
-                    </Badge>
+                    {(data as any).reference_code ? (
+                      <Badge bg="light" text="dark">
+                        Ref: {(data as any).reference_code}
+                      </Badge>
+                    ) : null}
+
+                    <Badge bg="secondary">{(data as any).status}</Badge>
+
+                    {(data as any).priority ? (
+                      <Badge bg="warning" text="dark">
+                        {(data as any).priority}
+                      </Badge>
+                    ) : null}
+
+                    <span className="text-muted">Stage: {stageName}</span>
+                  </div>
+
+                  <div className="text-muted mb-2">{(data as any).description || "—"}</div>
+
+                  <Row className="g-2">
+                    <Col md={4}>
+                      <div className="text-muted">Due</div>
+                      <div>{formatDate((data as any).due_date)}</div>
+                    </Col>
+                    <Col md={4}>
+                      <div className="text-muted">Assigned To</div>
+                      <div>
+                        {(data as any).assigned_to
+                          ? (data as any).assigned_to_name || "Employee"
+                          : "—"}
+                      </div>
+                    </Col>
+                    <Col md={4}>
+                      <div className="text-muted">Customer</div>
+                      <div>
+                        {customerId ? (
+                          <Link to={`/customers/${customerId}`}>{customerName || "Customer"}</Link>
+                        ) : (
+                          "—"
+                        )}
+                      </div>
+                    </Col>
+                  </Row>
+                </Col>
+
+                <Col md="auto" className="mt-2 mt-md-0">
+                  <div className="d-flex gap-2 justify-content-md-end">
                     {canLogSale ? (
-                      <Button
-                        size="sm"
-                        variant="outline-success"
-                        onClick={() => alert("Log Sale is not implemented yet. (Gate is working ✅)")}
-                      >
+                      <Button variant="success" size="sm" onClick={() => setShowSaleModal(true)}>
                         Log Sale
                       </Button>
                     ) : (
-                      <Button size="sm" variant="outline-secondary" disabled>
+                      <Button variant="outline-secondary" size="sm" disabled>
                         Log Sale
                       </Button>
                     )}
                   </div>
-
-                  <div className="mt-3">
-                    <div className="text-muted small mb-1">Description</div>
-                    <div>{data.description || "—"}</div>
-                  </div>
-                </Col>
-
-                <Col md={4}>
-                  <Table size="sm" borderless className="mb-0">
-                    <tbody>
-                      <tr>
-                        <td className="text-muted">Due</td>
-                        <td className="text-end">{formatDate(data.due_date)}</td>
-                      </tr>
-                      <tr>
-                        <td className="text-muted">Assigned To</td>
-                        <td className="text-end">{data.assigned_to ? data.assigned_to_name || "Employee" : "—"}</td>
-                      </tr>
-                      <tr>
-                        <td className="text-muted">Customer</td>
-                        <td className="text-end">
-                          {customerId ? (
-                            <Link to={`/makerfex/customers/${customerId}`}>{customerName || "Customer"}</Link>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </Table>
                 </Col>
               </Row>
             </Card.Body>
@@ -403,63 +436,74 @@ export default function ProjectDetail() {
           {usageMsg ? <Alert variant="success">{usageMsg}</Alert> : null}
           {usageErr ? <Alert variant="danger">{usageErr}</Alert> : null}
 
-          <h5 className="mt-4 mb-2">BOM Snapshots</h5>
-          {renderSnapshotTable("material")}
-          {renderSnapshotTable("consumable")}
-          {renderSnapshotTable("equipment")}
-
-          <h5 className="mt-4 mb-2">Inventory Ledger (This Project)</h5>
-          <Card className="mb-4">
+          <Card className="mb-3">
             <Card.Body>
+              <h5 className="mb-2">BOM Snapshots</h5>
+              {renderSnapshotTable("material")}
+              {renderSnapshotTable("consumable")}
+              {renderSnapshotTable("equipment")}
+            </Card.Body>
+          </Card>
+
+          <Card className="mb-3">
+            <Card.Body>
+              <h5 className="mb-2">Inventory Ledger (This Project)</h5>
+
               {ledgerBusy ? (
-                <Spinner animation="border" />
+                <div className="d-flex align-items-center gap-2">
+                  <Spinner size="sm" />
+                  <div>Loading ledger…</div>
+                </div>
               ) : ledgerErr ? (
                 <Alert variant="danger">{ledgerErr}</Alert>
               ) : ledger.length === 0 ? (
                 <div className="text-muted">No inventory transactions logged for this project.</div>
               ) : (
-                <div className="table-responsive">
-                  <Table size="sm" bordered hover className="mb-0">
-                    <thead>
-                      <tr>
-                        <th>When</th>
-                        <th>Type</th>
-                        <th>Delta</th>
-                        <th>Reason</th>
-                        <th>Snapshot</th>
-                        <th>Notes</th>
+                <Table responsive size="sm" hover>
+                  <thead>
+                    <tr>
+                      <th>When</th>
+                      <th>Type</th>
+                      <th>Delta</th>
+                      <th>Reason</th>
+                      <th>Snapshot</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledger.map((t) => (
+                      <tr key={t.id}>
+                        <td>{new Date(t.created_at).toLocaleString()}</td>
+                        <td>{t.inventory_type}</td>
+                        <td>{t.quantity_delta}</td>
+                        <td>{t.reason}</td>
+                        <td>
+                          {t.bom_snapshot_type && t.bom_snapshot_id
+                            ? `${t.bom_snapshot_type} #${t.bom_snapshot_id}`
+                            : "—"}
+                        </td>
+                        <td>{t.notes || "—"}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {ledger.map((t) => (
-                        <tr key={t.id}>
-                          <td>{new Date(t.created_at).toLocaleString()}</td>
-                          <td>{t.inventory_type}</td>
-                          <td>{t.quantity_delta}</td>
-                          <td>{t.reason}</td>
-                          <td>
-                            {t.bom_snapshot_type && t.bom_snapshot_id
-                              ? `${t.bom_snapshot_type} #${t.bom_snapshot_id}`
-                              : "—"}
-                          </td>
-                          <td>{t.notes || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
-                </div>
+                    ))}
+                  </tbody>
+                </Table>
               )}
+
+              <div className="mt-3">
+                <Link to={`/tasks?project=${data.id}`}>View Tasks for this project</Link>
+              </div>
             </Card.Body>
           </Card>
 
-          {/* ✅ Tasks for this project */}
-          <Link to={`/makerfex/tasks?project=${projectId}`}>View Tasks for this project</Link>
-
-          <h5 className="mt-4 mb-2">Related Projects</h5>
-          <Card className="mb-4">
+          <Card>
             <Card.Body>
+              <h5 className="mb-2">Related Projects</h5>
+
               {relatedLoading ? (
-                <Spinner animation="border" />
+                <div className="d-flex align-items-center gap-2">
+                  <Spinner size="sm" />
+                  <div>Loading…</div>
+                </div>
               ) : !customerId ? (
                 <div className="text-muted">No customer assigned.</div>
               ) : relatedErr ? (
@@ -467,33 +511,41 @@ export default function ProjectDetail() {
               ) : related.length === 0 ? (
                 <div className="text-muted">No other projects for this customer.</div>
               ) : (
-                <div className="table-responsive">
-                  <Table size="sm" bordered hover className="mb-0">
-                    <thead>
-                      <tr>
-                        <th>Project</th>
-                        <th>Status</th>
-                        <th>Assigned</th>
-                        <th>Due</th>
+                <Table responsive size="sm" hover>
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Status</th>
+                      <th>Assigned</th>
+                      <th>Due</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {related.map((p) => (
+                      <tr key={p.id}>
+                        <td>
+                          <Link to={`/projects/${p.id}`}>{p.name}</Link>
+                        </td>
+                        <td>{(p as any).status ?? "—"}</td>
+                        <td>
+                          {(p as any).assigned_to ? (p as any).assigned_to_name || "Employee" : "—"}
+                        </td>
+                        <td>{formatDate((p as any).due_date)}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {related.map((p) => (
-                        <tr key={p.id}>
-                          <td>
-                            <Link to={`/makerfex/projects/${p.id}`}>{p.name}</Link>
-                          </td>
-                          <td>{p.status ?? "—"}</td>
-                          <td>{p.assigned_to ? p.assigned_to_name || "Employee" : "—"}</td>
-                          <td>{formatDate(p.due_date)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
-                </div>
+                    ))}
+                  </tbody>
+                </Table>
               )}
             </Card.Body>
           </Card>
+          <LogSaleModal
+            show={showSaleModal}
+            onHide={() => setShowSaleModal(false)}
+            projectId={data?.id ?? null}
+            projectName={data?.name ?? null}
+            project={data}          // ✅ add this
+            onSuccess={(order) => navigate(`/sales/${order.id}`)}
+          />
         </>
       )}
     </>

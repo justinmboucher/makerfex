@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Form, Table } from "react-bootstrap";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { useServerDataTable } from "../../hooks/useServerDataTable";
 import DataTableControls from "../tables/DataTableControls";
@@ -26,6 +26,8 @@ import { listProjects, type Project } from "../../api/projects";
 import { listStations, type Station } from "../../api/stations";
 import { listWorkflowStages, type WorkflowStage } from "../../api/workflows";
 import { listEmployees, type Employee } from "../../api/employees";
+
+import LogSaleModal from "./LogSaleModal";
 
 type ProjectsExtraParams = {
   status?: "active" | "on_hold" | "completed" | "cancelled";
@@ -143,6 +145,24 @@ export default function ProjectsTable({
   showStatusFilter = true,
   showAssigneeFilter = true,
 }: ProjectsTableProps) {
+  const navigate = useNavigate();
+
+  // ---- Log Sale (reusable modal) ------------------------------------------
+  const [showSaleModal, setShowSaleModal] = useState(false);
+  const [saleProject, setSaleProject] = useState<Project | null>(null);
+
+  function openSaleModal(p: Project) {
+    setSaleProject(p);
+    setShowSaleModal(true);
+  }
+
+  function closeSaleModal() {
+    setShowSaleModal(false);
+    setSaleProject(null);
+  }
+
+  // -------------------------------------------------------------------------
+
   // Saved presets
   const [savedPresets, setSavedPresets] = useState<TablePreset[]>(() =>
     loadSavedPresets(presetStorageKey)
@@ -160,12 +180,13 @@ export default function ProjectsTable({
   const [statusFilter, setStatusFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
 
-// If locked, do not allow changing
-const stationLocked = lockedParams?.station != null && String(lockedParams.station) !== "";
-const stageLocked = lockedParams?.current_stage != null && String(lockedParams.current_stage) !== "";
-const assigneeLocked = lockedParams?.assigned_to != null && String(lockedParams.assigned_to) !== "";
-const statusLocked = lockedParams?.status != null; // no "" check
-
+  // If locked, do not allow changing
+  const stationLocked = lockedParams?.station != null && String(lockedParams.station) !== "";
+  const stageLocked =
+    lockedParams?.current_stage != null && String(lockedParams.current_stage) !== "";
+  const assigneeLocked =
+    lockedParams?.assigned_to != null && String(lockedParams.assigned_to) !== "";
+  const statusLocked = lockedParams?.status != null; // no "" check
 
   const table = useServerDataTable<Project, ProjectsExtraParams>({
     presets,
@@ -206,7 +227,11 @@ const statusLocked = lockedParams?.status != null; // no "" check
     let alive = true;
     (async () => {
       try {
-        const r = await listWorkflowStages({ page: 1, page_size: 500, ordering: "workflow,order" } as any);
+        const r = await listWorkflowStages({
+          page: 1,
+          page_size: 500,
+          ordering: "workflow,order",
+        } as any);
         if (!alive) return;
         setStages((r.items ?? []) as WorkflowStage[]);
       } catch {
@@ -224,7 +249,11 @@ const statusLocked = lockedParams?.status != null; // no "" check
     let alive = true;
     (async () => {
       try {
-        const r = await listEmployees({ page: 1, page_size: 300, ordering: "last_name,first_name" } as any);
+        const r = await listEmployees({
+          page: 1,
+          page_size: 300,
+          ordering: "last_name,first_name",
+        } as any);
         if (!alive) return;
         setEmployees((r.items ?? []) as Employee[]);
       } catch {
@@ -240,17 +269,24 @@ const statusLocked = lockedParams?.status != null; // no "" check
   // Push dropdown UI → extraParams (Option B)
   useEffect(() => {
     actions.setExtraParams({
-      station: stationLocked ? undefined : (stationFilter || undefined),
-      current_stage: stageLocked ? undefined : (stageFilter || undefined),
+      station: stationLocked ? undefined : stationFilter || undefined,
+      current_stage: stageLocked ? undefined : stageFilter || undefined,
       status: statusLocked ? undefined : ((statusFilter as any) || undefined),
-      assigned_to: assigneeLocked ? undefined : (assigneeFilter || undefined),
+      assigned_to: assigneeLocked ? undefined : assigneeFilter || undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stationFilter, stageFilter, statusFilter, assigneeFilter, stationLocked, stageLocked, statusLocked, assigneeLocked]);
+  }, [
+    stationFilter,
+    stageFilter,
+    statusFilter,
+    assigneeFilter,
+    stationLocked,
+    stageLocked,
+    statusLocked,
+    assigneeLocked,
+  ]);
 
-  const shownLabel = state.loading
-    ? "Loading…"
-    : `${state.items.length} shown • ${state.count} total`;
+  const shownLabel = state.loading ? "Loading…" : `${state.items.length} shown • ${state.count} total`;
 
   const currentPresetParams = (presets.find((p) => p.key === state.activePresetKey)?.params ??
     {}) as ProjectsExtraParams;
@@ -310,8 +346,7 @@ const statusLocked = lockedParams?.status != null; // no "" check
 
   const canDeletePreset = (key: string) => !BUILTIN_PRESETS.some((p) => p.key === key);
 
-  const anyLocalFilters =
-    !!stationFilter || !!stageFilter || !!statusFilter || !!assigneeFilter;
+  const anyLocalFilters = !!stationFilter || !!stageFilter || !!statusFilter || !!assigneeFilter;
 
   return (
     <>
@@ -476,17 +511,13 @@ const statusLocked = lockedParams?.status != null; // no "" check
                     </th>
                     <th
                       style={{ cursor: "pointer" }}
-                      onClick={() =>
-                        actions.setOrdering(toggleOrdering(state.ordering, "priority"))
-                      }
+                      onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "priority"))}
                     >
                       Priority{sortIndicator(state.ordering, "priority")}
                     </th>
                     <th
                       style={{ cursor: "pointer" }}
-                      onClick={() =>
-                        actions.setOrdering(toggleOrdering(state.ordering, "due_date"))
-                      }
+                      onClick={() => actions.setOrdering(toggleOrdering(state.ordering, "due_date"))}
                     >
                       Due{sortIndicator(state.ordering, "due_date")}
                     </th>
@@ -519,108 +550,108 @@ const statusLocked = lockedParams?.status != null; // no "" check
                     state.items.map((p) => (
                       <tr key={p.id}>
                         <td>
-                        <div className="d-flex align-items-center gap-2">
+                          <div className="d-flex align-items-center gap-2">
                             <div
-                            className="rounded bg-light flex-shrink-0"
-                            style={{
+                              className="rounded bg-light flex-shrink-0"
+                              style={{
                                 width: 34,
                                 height: 34,
                                 overflow: "hidden",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                            }}
+                              }}
                             >
-                            {p.photo_url ? (
+                              {p.photo_url ? (
                                 <img
-                                src={p.photo_url}
-                                alt=""
-                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                  src={p.photo_url}
+                                  alt=""
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
                                 />
-                            ) : (
-                                // fallback placeholder (keeps row height stable)
+                              ) : (
                                 <div style={{ width: "100%", height: "100%" }} />
-                            )}
+                              )}
                             </div>
 
                             <div className="min-w-0">
-                            <div className="fw-semibold text-truncate">
+                              <div className="fw-semibold text-truncate">
                                 <Link to={`/projects/${p.id}`} className="text-decoration-none">
-                                    {p.name || `Project #${p.id}`}
+                                  {p.name || `Project #${p.id}`}
                                 </Link>
+                              </div>
+                              <div className="text-muted small">Ref: {p.reference_code || "—"}</div>
                             </div>
-                            <div className="text-muted small">
-                                Ref: {p.reference_code || "—"}
-                            </div>
-                            </div>
-                        </div>
+                          </div>
                         </td>
+
                         <td>
-                            {p.customer && p.customer_name ? (
-                                <Link to={`/customers/${p.customer}`} className="text-decoration-none">
-                                {p.customer_name}
-                                </Link>
-                            ) : (
-                                p.customer_name || "—"
-                            )}
+                          {p.customer && p.customer_name ? (
+                            <Link to={`/customers/${p.customer}`} className="text-decoration-none">
+                              {p.customer_name}
+                            </Link>
+                          ) : (
+                            p.customer_name || "—"
+                          )}
                         </td>
+
                         <td>
-                            {p.station && p.station_name ? (
-                                <Link to={`/stations/${p.station}`} className="text-decoration-none">
-                                {p.station_name}
-                                </Link>
-                            ) : (
-                                p.station_name || "—"
-                            )}
+                          {p.station && p.station_name ? (
+                            <Link to={`/stations/${p.station}`} className="text-decoration-none">
+                              {p.station_name}
+                            </Link>
+                          ) : (
+                            p.station_name || "—"
+                          )}
                         </td>
+
                         <td>
-                            {p.current_stage_name ? (
-                                <span className="badge bg-secondary-transparent">
-                                {p.current_stage_name}
-                                </span>
-                            ) : (
-                                "—"
-                            )}
+                          {p.current_stage_name ? (
+                            <span className="badge bg-secondary-transparent">{p.current_stage_name}</span>
+                          ) : (
+                            "—"
+                          )}
                         </td>
+
                         <td>
-                            <span className={`badge ${pillClassForStatus(p.status)}`}>
-                                {p.status}
-                            </span>
+                          <span className={`badge ${pillClassForStatus(p.status)}`}>{p.status}</span>
                         </td>
+
                         <td>
-                            <span className={`badge ${pillClassForPriority(p.priority)}`}>
-                                {p.priority}
-                            </span>
+                          <span className={`badge ${pillClassForPriority(p.priority)}`}>
+                            {p.priority}
+                          </span>
                         </td>
+
                         <td>{p.due_date || "—"}</td>
                         <td>{p.assigned_to_name || "—"}</td>
-                        <td className="text-nowrap">
-                            <div className="d-flex gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="outline-success"
-                                    className="btn-icon"
-                                    disabled={!Boolean((p as any).can_log_sale)}
-                                    onClick={() => alert("Log Sale is not implemented yet. (Gate is working ✅)")}
-                                    title={
-                                        Boolean((p as any).can_log_sale)
-                                        ? "Log sale"
-                                        : "Complete the final stage to enable"
-                                    }
-                                    >
-                                    <i className="ri-shopping-bag-3-line" />
-                                </Button>
 
-                                <Button
-                                    as={Link as any}
-                                    to={`/projects/${p.id}`}
-                                    size="sm"
-                                    variant="outline-primary"
-                                    className="btn-icon"
-                                    title="View project"
-                                    >
-                                    <i className="ri-eye-line" />
-                                </Button>
+                        <td className="text-nowrap">
+                          <div className="d-flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline-success"
+                              className="btn-icon"
+                              disabled={!Boolean((p as any).can_log_sale)}
+                              onClick={() => openSaleModal(p)}
+                              title={
+                                Boolean((p as any).can_log_sale)
+                                  ? "Log sale"
+                                  : "Complete the final stage to enable"
+                              }
+                            >
+                              <i className="ri-shopping-bag-3-line" />
+                            </Button>
+
+                            <Button
+                              as={Link as any}
+                              to={`/projects/${p.id}`}
+                              size="sm"
+                              variant="outline-primary"
+                              className="btn-icon"
+                              title="View project"
+                            >
+                              <i className="ri-eye-line" />
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -656,6 +687,15 @@ const statusLocked = lockedParams?.status != null; // no "" check
           </Card.Body>
         </Card>
       )}
+
+      <LogSaleModal
+        show={showSaleModal}
+        onHide={closeSaleModal}
+        projectId={saleProject?.id ?? null}
+        projectName={saleProject?.name ?? null}
+        project={saleProject}   // ✅ add this
+        onSuccess={(order) => navigate(`/sales/${order.id}`)}
+      />
     </>
   );
 }
