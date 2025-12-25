@@ -607,6 +607,15 @@ export const MENUITEMS: any = [
     selected: false,
   },
 
+   {
+    title: "Sales",
+    path: "/sales",
+    type: "link",
+    icon: <i className="ri-receipt-line side-menu__icon" />,
+    active: false,
+    selected: false,
+  },
+
   // Optional dev tool (you can remove later)
   {
     title: "API Proof",

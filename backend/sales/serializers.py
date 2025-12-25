@@ -1,6 +1,7 @@
 # backend/sales/serializers.py
-from rest_framework import serializers
 
+from decimal import Decimal
+from rest_framework import serializers
 from .models import SalesOrder, SalesOrderLine
 
 
@@ -48,3 +49,37 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+
+# ✅ NEW: request payload serializer for log_from_project
+class LogSaleFromProjectSerializer(serializers.Serializer):
+    project_id = serializers.IntegerField(min_value=1)
+    total_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    order_date = serializers.DateField(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+    source = serializers.ChoiceField(
+        choices=SalesOrder.Source.choices,
+        required=False,
+        default=SalesOrder.Source.OTHER,
+    )
+
+    archive_project = serializers.BooleanField(required=False, default=True)
+
+    create_product_template = serializers.BooleanField(required=False, default=False)
+    new_template_name = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate_total_amount(self, v: Decimal):
+        if v is None:
+            raise serializers.ValidationError("Total amount is required.")
+        if v <= 0:
+            raise serializers.ValidationError("Total amount must be > 0.")
+        return v
+
+    def validate(self, attrs):
+        if attrs.get("create_product_template"):
+            name = (attrs.get("new_template_name") or "").strip()
+            if not name:
+                raise serializers.ValidationError(
+                    {"new_template_name": "Template name is required when creating a product template."}
+                )
+        return attrs
