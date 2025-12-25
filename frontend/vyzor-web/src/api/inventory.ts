@@ -33,6 +33,7 @@ export type InventoryBase = {
 export type Material = InventoryBase & { material_type: string };
 export type Consumable = InventoryBase & { consumable_type: string };
 export type Equipment = InventoryBase & {
+  equipment_type: string;
   serial_number: string;
   purchase_date: string | null;
   warranty_expiration: string | null;
@@ -113,4 +114,19 @@ export async function listInventoryTransactions(params?: Record<string, any>) {
     { params }
   );
   return unwrapList<InventoryTransaction>(res.data);
+}
+
+export async function getMaterial(id: number) {
+  const res = await axiosClient.get<Material>(`${BASE_MATERIALS}${id}/`);
+  return res.data;
+}
+
+export async function getConsumable(id: number) {
+  const res = await axiosClient.get<Consumable>(`${BASE_CONSUMABLES}${id}/`);
+  return res.data;
+}
+
+export async function getEquipment(id: number) {
+  const res = await axiosClient.get<Equipment>(`${BASE_EQUIPMENT}${id}/`);
+  return res.data;
 }

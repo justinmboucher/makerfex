@@ -15,6 +15,7 @@
 
 import { useMemo, useState } from "react";
 import { Button, Card, Table } from "react-bootstrap";
+import { Link } from "react-router-dom";
 
 import { useServerDataTable } from "../../hooks/useServerDataTable";
 import DataTableControls from "../tables/DataTableControls";
@@ -97,13 +98,20 @@ function kindLabel(kind: InventoryKind) {
 function kindFieldLabel(kind: InventoryKind) {
   if (kind === "materials") return "Material type";
   if (kind === "consumables") return "Consumable type";
-  return "Serial #";
+  return "Equipment type";
 }
-
 function kindFieldValue(kind: InventoryKind, row: InventoryRow): string {
   if (kind === "materials") return (row as Material).material_type || "—";
   if (kind === "consumables") return (row as Consumable).consumable_type || "—";
+  return (row as Equipment).equipment_type || "—";
+}
+function equipmentSerial(row: InventoryRow): string {
   return (row as Equipment).serial_number || "—";
+}
+function kindToInventoryType(kind: InventoryKind): "material" | "consumable" | "equipment" {
+  if (kind === "materials") return "material";
+  if (kind === "consumables") return "consumable";
+  return "equipment";
 }
 
 function toNum(v: any): number {
@@ -308,6 +316,7 @@ export default function InventoryTable({
                       Unit cost{sortIndicator(state.ordering, "unit_cost")}
                     </th>
                     <th>{kindFieldLabel(kind)}</th>
+                    {kind === "equipment" ? <th>Serial #</th> : null}
                   </tr>
                 </thead>
 
@@ -353,7 +362,9 @@ export default function InventoryTable({
 
                             <div className="min-w-0">
                               <div className="fw-semibold text-truncate">
-                                {row.name || `Item #${row.id}`}
+                                <Link to={`/makerfex/inventory/${kindToInventoryType(kind)}/${row.id}`}>
+                                  {row.name}
+                                </Link>
                               </div>
 
                               <div className="d-flex flex-wrap align-items-center gap-2 small text-muted">
@@ -391,6 +402,7 @@ export default function InventoryTable({
                         <td>{row.unit_of_measure || "—"}</td>
                         <td className="text-end">{row.unit_cost ?? "—"}</td>
                         <td>{kindFieldValue(kind, row)}</td>
+                        {kind === "equipment" ? <td>{equipmentSerial(row)}</td> : null}
                       </tr>
                     ))
                   )}
