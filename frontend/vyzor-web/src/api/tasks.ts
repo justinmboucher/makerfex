@@ -14,6 +14,10 @@ export type Task = {
   shop: number;
 
   project: number | null;
+  project_name?: string | null;
+  project_due_date?: string | null;
+  is_vip?: boolean;
+
   title: string;
   description: string | null;
 
