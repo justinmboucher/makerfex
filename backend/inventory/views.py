@@ -15,6 +15,10 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.utils.dateparse import parse_date, parse_datetime
+from datetime import datetime, time
+from django.utils import timezone
+
 
 from accounts.models import Employee
 from accounts.utils import get_shop_for_user
@@ -231,6 +235,36 @@ class InventoryTransactionViewSet(ServerTableViewSetMixin, ShopScopedQuerysetMix
                 qs = qs.filter(station_id=int(station))
             except (TypeError, ValueError):
                 pass
+        
+        # Date filters (optional)
+        created_after = qp.get("created_after")
+        if created_after:
+            # Accept YYYY-MM-DD (preferred) or ISO datetime
+            d = parse_date(created_after)
+            dt = parse_datetime(created_after) if d is None else None
+            if d:
+                # start of day in current tz
+                start = datetime.combine(d, time.min)
+                start = timezone.make_aware(start, timezone.get_current_timezone())
+                qs = qs.filter(created_at__gte=start)
+            elif dt:
+                if timezone.is_naive(dt):
+                    dt = timezone.make_aware(dt, timezone.get_current_timezone())
+                qs = qs.filter(created_at__gte=dt)
+
+        created_before = qp.get("created_before")
+        if created_before:
+            d = parse_date(created_before)
+            dt = parse_datetime(created_before) if d is None else None
+            if d:
+                # end of day in current tz
+                end = datetime.combine(d, time.max)
+                end = timezone.make_aware(end, timezone.get_current_timezone())
+                qs = qs.filter(created_at__lte=end)
+            elif dt:
+                if timezone.is_naive(dt):
+                    dt = timezone.make_aware(dt, timezone.get_current_timezone())
+                qs = qs.filter(created_at__lte=dt)
 
         return qs
 
