@@ -38,6 +38,20 @@ export default function InventoryDetail() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+    if (!invType || !Number.isFinite(itemId)) {
+        return (
+            <>
+            <h3 className="mb-3">Inventory Item</h3>
+            <Alert variant="danger">
+                Invalid inventory route. Expected /makerfex/inventory/:inventoryType/:id
+            </Alert>
+            <div className="mb-3">
+                <Link to="/makerfex/inventory">← Back to Inventory</Link>
+            </div>
+            </>
+        );
+    }
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -81,7 +95,7 @@ export default function InventoryDetail() {
       <h3 className="mb-3">{title}</h3>
 
       <div className="mb-3">
-        <Link to="/makerfex/inventory">← Back to Inventory</Link>
+        <Link to="/inventory">← Back to Inventory</Link>
       </div>
 
       {loading ? (

@@ -8,20 +8,33 @@
 // ============================================================================
 import { useMemo } from "react";
 import { Card, Form, Table } from "react-bootstrap";
+
 import { useServerDataTable } from "../../hooks/useServerDataTable";
 import DataTableControls from "../tables/DataTableControls";
-import { listInventoryTransactions, type InventoryTransaction, type InventoryType } from "../../api/inventory";
+import {
+  listInventoryTransactions,
+  type InventoryTransaction,
+  type InventoryType,
+} from "../../api/inventory";
+
+type Reason = InventoryTransaction["reason"];
+
+type ExtraParams = {
+  reason?: Reason;
+  created_after?: string;  // YYYY-MM-DD
+  created_before?: string; // YYYY-MM-DD
+};
 
 type Props = {
   inventoryType: InventoryType;
   inventoryId: number;
 };
 
-function toggleOrdering(current: string, nextField: string): string {
-  const isDesc = current === `-${nextField}`;
-  const isAsc = current === nextField;
-  if (!isAsc && !isDesc) return nextField;
-  if (isAsc) return `-${nextField}`;
+function toggleOrdering(current: string, field: string): string {
+  const isDesc = current === `-${field}`;
+  const isAsc = current === field;
+  if (!isAsc && !isDesc) return field;
+  if (isAsc) return `-${field}`;
   return "";
 }
 
@@ -40,28 +53,20 @@ function fmtDateTime(s: string) {
 }
 
 export default function InventoryLedgerTable({ inventoryType, inventoryId }: Props) {
-  const {
-    q,
-    setQ,
-    ordering,
-    setOrdering,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    data,
-    loading,
-    error,
-    actions,
-  } = useServerDataTable<Record<string, any>, InventoryTransaction>({
+  // ✅ Correct generic order: <RowType, ExtraParamsType>
+  const { state, actions } = useServerDataTable<InventoryTransaction, ExtraParams>({
     fetcher: async (params) => {
-      // Locked item scope always applies (tenant safety is server-side, too)
-      const locked = { inventory_type: inventoryType, inventory_id: inventoryId };
-      const merged = { ...params, ...locked };
-      return listInventoryTransactions(merged).then((r) => ({
-        count: r.count ?? 0,
-        results: r.items ?? [],
-      }));
+      const res = await listInventoryTransactions({
+        ...params,
+        inventory_type: inventoryType,
+        inventory_id: inventoryId,
+      });
+
+      // Hook expects { results, count }
+      return {
+        count: res.count ?? 0,
+        results: res.items ?? [],
+      };
     },
     debounceMs: 250,
     initial: {
@@ -69,25 +74,23 @@ export default function InventoryLedgerTable({ inventoryType, inventoryId }: Pro
       page: 1,
       pageSize: 25,
       extraParams: {
-        reason: "",
-        created_after: "",
-        created_before: "",
+        reason: undefined,
+        created_after: undefined,
+        created_before: undefined,
       },
     },
   });
 
-  const rows = data?.results ?? [];
-  const total = data?.count ?? 0;
+  const rows = state.items;          // InventoryTransaction[]
+  const total = state.count;         // number
+  const extra = state.extraParams ?? {};
+  const reason = extra.reason;
+  const createdAfter = extra.created_after ?? "";
+  const createdBefore = extra.created_before ?? "";
 
   const shownLabel = useMemo(() => {
-    const shown = rows.length;
-    return `${shown} shown • ${total} total`;
+    return `${rows.length} shown • ${total} total`;
   }, [rows.length, total]);
-
-  const extra = actions.extraParams ?? {};
-  const reason = (extra as any).reason ?? "";
-  const createdAfter = (extra as any).created_after ?? "";
-  const createdBefore = (extra as any).created_before ?? "";
 
   return (
     <Card>
@@ -95,23 +98,19 @@ export default function InventoryLedgerTable({ inventoryType, inventoryId }: Pro
         <h5 className="mb-3">Transaction history</h5>
 
         <DataTableControls
-          q={q}
-          onQChange={(v) => {
-            setQ(v);
-            setPage(1);
-          }}
+          q={state.q}
+          onQChange={(v) => actions.setQ(v)}
           searchPlaceholder="Search notes…"
-          pageSize={pageSize}
-          onPageSizeChange={(n) => {
-            setPageSize(n);
-            setPage(1);
-          }}
+          pageSize={state.pageSize}
+          onPageSizeChange={(n) => actions.setPageSize(n)}
           shownCountLabel={shownLabel}
           onClearFilters={() => {
-            setQ("");
-            setOrdering("-created_at");
-            actions.setExtraParams({ reason: "", created_after: "", created_before: "" });
-            setPage(1);
+            actions.clearFilters();
+            actions.setExtraParams({
+              reason: undefined,
+              created_after: undefined,
+              created_before: undefined,
+            });
           }}
           afterSearch={
             <div className="d-flex flex-wrap gap-2 align-items-end">
@@ -119,10 +118,10 @@ export default function InventoryLedgerTable({ inventoryType, inventoryId }: Pro
                 <Form.Label className="mb-1">Reason</Form.Label>
                 <Form.Select
                   size="sm"
-                  value={reason}
+                  value={reason ?? ""}
                   onChange={(e) => {
-                    actions.setExtraParams({ ...extra, reason: e.target.value });
-                    setPage(1);
+                    const v = e.target.value as Reason | "";
+                    actions.setExtraParams({ reason: v === "" ? undefined : v });
                   }}
                 >
                   <option value="">All</option>
@@ -140,8 +139,8 @@ export default function InventoryLedgerTable({ inventoryType, inventoryId }: Pro
                   type="date"
                   value={createdAfter}
                   onChange={(e) => {
-                    actions.setExtraParams({ ...extra, created_after: e.target.value });
-                    setPage(1);
+                    const v = e.target.value;
+                    actions.setExtraParams({ created_after: v ? v : undefined });
                   }}
                 />
               </Form.Group>
@@ -153,8 +152,8 @@ export default function InventoryLedgerTable({ inventoryType, inventoryId }: Pro
                   type="date"
                   value={createdBefore}
                   onChange={(e) => {
-                    actions.setExtraParams({ ...extra, created_before: e.target.value });
-                    setPage(1);
+                    const v = e.target.value;
+                    actions.setExtraParams({ created_before: v ? v : undefined });
                   }}
                 />
               </Form.Group>
@@ -163,41 +162,52 @@ export default function InventoryLedgerTable({ inventoryType, inventoryId }: Pro
         />
 
         <div className="mt-3">
-          {error ? (
-            <div className="text-danger">{String(error)}</div>
+          {state.error ? (
+            <div className="text-danger">{String(state.error)}</div>
           ) : (
             <Table responsive hover size="sm" className="mb-0">
               <thead>
                 <tr>
                   <th
                     role="button"
-                    onClick={() => setOrdering(toggleOrdering(ordering, "created_at"))}
+                    onClick={() =>
+                      actions.setOrdering(toggleOrdering(state.ordering, "created_at"))
+                    }
                   >
-                    When{sortIndicator(ordering, "created_at")}
+                    When{sortIndicator(state.ordering, "created_at")}
                   </th>
                   <th>Type</th>
                   <th
                     role="button"
-                    onClick={() => setOrdering(toggleOrdering(ordering, "quantity_delta"))}
+                    onClick={() =>
+                      actions.setOrdering(toggleOrdering(state.ordering, "quantity_delta"))
+                    }
                   >
-                    Delta{sortIndicator(ordering, "quantity_delta")}
+                    Delta{sortIndicator(state.ordering, "quantity_delta")}
                   </th>
                   <th
                     role="button"
-                    onClick={() => setOrdering(toggleOrdering(ordering, "reason"))}
+                    onClick={() =>
+                      actions.setOrdering(toggleOrdering(state.ordering, "reason"))
+                    }
                   >
-                    Reason{sortIndicator(ordering, "reason")}
+                    Reason{sortIndicator(state.ordering, "reason")}
                   </th>
                   <th>Project</th>
                   <th>Station</th>
                   <th>Notes</th>
                 </tr>
               </thead>
+
               <tbody>
-                {loading ? (
-                  <tr><td colSpan={7}>Loading…</td></tr>
+                {state.loading ? (
+                  <tr>
+                    <td colSpan={7}>Loading…</td>
+                  </tr>
                 ) : rows.length === 0 ? (
-                  <tr><td colSpan={7}>No transactions found.</td></tr>
+                  <tr>
+                    <td colSpan={7}>No transactions found.</td>
+                  </tr>
                 ) : (
                   rows.map((t) => (
                     <tr key={t.id}>
