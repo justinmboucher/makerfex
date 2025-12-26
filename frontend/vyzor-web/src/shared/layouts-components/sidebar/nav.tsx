@@ -590,6 +590,15 @@ export const MENUITEMS: any = [
   },
 
   {
+    title: "Kanban",
+    icon: <i className="ri-layout-masonry-line side-menu__icon"></i>,
+    type: "link",
+    path: "/kanban",
+    active: false,
+    selected: false,
+  },
+
+  {
     title: "Inventory",
     icon: <i className="ri-box-3-line side-menu__icon"></i>,
     type: "link",

@@ -48,6 +48,7 @@ class ShopScopedMixin:
 class WorkflowViewSet(
     ServerTableViewSetMixin, ShopScopedQuerysetMixin, ShopScopedMixin, viewsets.ModelViewSet
 ):
+    lookup_value_regex = r"\d+"
     serializer_class = WorkflowSerializer
     queryset = Workflow.objects.none()
 
@@ -159,6 +160,7 @@ class WorkflowViewSet(
 class WorkflowStageViewSet(
     ServerTableViewSetMixin, ShopScopedQuerysetMixin, ShopScopedMixin, viewsets.ModelViewSet
 ):
+    lookup_value_regex = r"\d+"
     serializer_class = WorkflowStageSerializer
     queryset = WorkflowStage.objects.none()
 

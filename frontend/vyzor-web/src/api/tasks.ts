@@ -14,6 +14,10 @@ export type Task = {
   shop: number;
 
   project: number | null;
+  project_name?: string | null;
+  project_due_date?: string | null;
+  is_vip?: boolean;
+
   title: string;
   description: string | null;
 
@@ -62,5 +66,10 @@ export async function listTasks(params?: Record<string, any>): Promise<TaskListR
 
 export async function getTask(id: number): Promise<Task> {
   const res = await axiosClient.get<Task>(`${BASE}${id}/`);
+  return res.data;
+}
+
+export async function updateTask(id: number, patch: Partial<Task>): Promise<Task> {
+  const res = await axiosClient.patch<Task>(`${BASE}${id}/`, patch);
   return res.data;
 }

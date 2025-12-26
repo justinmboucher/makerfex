@@ -31,6 +31,7 @@ const MFInventoryDetail = lazy(() => import("./pages/makerfex/InventoryDetail.ts
 const MFProducts = lazy(() => import("./pages/makerfex/Products.tsx"));
 const MFSales = lazy(() => import("./pages/makerfex/Sales.tsx"));
 const MFSalesDetail = lazy(() => import("./pages/makerfex/SalesDetail.tsx"));
+const MFKanban = lazy(() => import("./pages/makerfex/Kanban.tsx"));
 
 
 const App = lazy(() => import('./pages/App.tsx'));
@@ -176,6 +177,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                   element={
                     <ProtectedRoute>
                       <MFTasks />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="kanban"
+                  element={
+                    <ProtectedRoute>
+                      <MFKanban />
                     </ProtectedRoute>
                   }
                 />

@@ -1,7 +1,5 @@
 # backend/tasks/views.py
-
 from django.utils import timezone
-
 from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
@@ -24,10 +22,11 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     Preset-friendly filters:
       ?status=todo,in_progress,blocked,done,cancelled
-      ?project=<id>
-      ?station=<id>
-      ?stage=<id>
-      ?assignee=<employee_id>
+      ?project=
+      ?station=
+      ?stage=
+      ?workflow=   <-- NEW (stage__workflow)
+      ?assignee=
       ?unassigned=1|0
       ?is_overdue=1|0
       ?due_before=YYYY-MM-DD
@@ -35,10 +34,10 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     Non-destructive phase: DELETE disabled.
     """
+
     permission_classes = [IsAuthenticated]
     serializer_class = TaskSerializer
     queryset = Task.objects.none()
-
     http_method_names = ["get", "post", "put", "patch", "head", "options"]
 
     filter_backends = [QueryParamSearchFilter, OrderingFilter]
@@ -70,9 +69,8 @@ class TaskViewSet(viewsets.ModelViewSet):
             return Task.objects.none()
 
         qs = (
-            Task.objects
-            .filter(shop=shop)
-            .select_related("shop", "project", "station", "assignee", "stage")
+            Task.objects.filter(shop=shop)
+            .select_related("shop", "project", "project__customer", "station", "assignee", "stage")
         )
 
         qp = self.request.query_params
@@ -95,6 +93,11 @@ class TaskViewSet(viewsets.ModelViewSet):
         if stage_id:
             qs = qs.filter(stage_id=stage_id)
 
+        # ✅ NEW: workflow filter (drives Kanban board)
+        workflow_id = qp.get("workflow")
+        if workflow_id:
+            qs = qs.filter(stage__workflow_id=workflow_id)
+
         assignee_id = qp.get("assignee")
         if assignee_id:
             qs = qs.filter(assignee_id=assignee_id)
@@ -110,8 +113,8 @@ class TaskViewSet(viewsets.ModelViewSet):
             today = timezone.localdate()
             overdue_ids = (
                 qs.filter(due_date__isnull=False, due_date__lt=today)
-                  .exclude(status__in=["done", "cancelled"])
-                  .values_list("id", flat=True)
+                .exclude(status__in=["done", "cancelled"])
+                .values_list("id", flat=True)
             )
             qs = qs.filter(id__in=overdue_ids) if is_overdue else qs.exclude(id__in=overdue_ids)
 
