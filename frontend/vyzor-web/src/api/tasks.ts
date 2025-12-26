@@ -68,3 +68,8 @@ export async function getTask(id: number): Promise<Task> {
   const res = await axiosClient.get<Task>(`${BASE}${id}/`);
   return res.data;
 }
+
+export async function updateTask(id: number, patch: Partial<Task>): Promise<Task> {
+  const res = await axiosClient.patch<Task>(`${BASE}${id}/`, patch);
+  return res.data;
+}
